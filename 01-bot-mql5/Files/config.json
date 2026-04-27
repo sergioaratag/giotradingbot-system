@@ -1,0 +1,107 @@
+{
+  "_comment_meta": "Config del EA ICT_Bot. Editable sin recompilar.",
+  "version": "0.0.1",
+
+  "general": {
+    "_comment": "Pares permitidos y zona horaria de referencia.",
+    "symbols": ["EURUSD", "GBPUSD"],
+    "timezone": "America/New_York",
+    "magic_number": 20260427
+  },
+
+  "schedule": {
+    "_comment": "Horarios en NY time. Viernes corte temprano. Cierre forzado fin de dia.",
+    "trading_days": ["MON", "TUE", "WED", "THU", "FRI"],
+    "friday_cutoff_ny": "12:00",
+    "force_close_ny": "16:00",
+    "killzones_ny": {
+      "london":  { "start": "02:00", "end": "05:00" },
+      "ny_am":   { "start": "08:30", "end": "11:00" },
+      "ny_pm":   { "start": "13:30", "end": "15:00" }
+    },
+    "asia_range_ny": { "start": "19:00", "end": "00:00" }
+  },
+
+  "risk": {
+    "_comment": "Reglas duras. NO modificar sin justificar en notes/decisiones.md.",
+    "risk_per_trade_pct": 0.5,
+    "daily_loss_cap_pct": 1.5,
+    "max_concurrent_trades": 1,
+    "max_sl_pips": 25,
+    "min_rr": 2.0,
+    "tp1_rr": 2.0,
+    "tp2_rr": 4.0,
+    "move_to_be_after_tp1": true
+  },
+
+  "bias": {
+    "_comment": "Calculo de bias HTF.",
+    "htf_main": "H4",
+    "htf_secondary": "H1",
+    "require_alignment": true
+  },
+
+  "sweep": {
+    "_comment": "Parametros del detector de sweeps.",
+    "min_wick_pips": 2,
+    "max_age_bars_m1": 30,
+    "pools": ["ASIA_HIGH", "ASIA_LOW", "PDH", "PDL", "EQH", "EQL", "SESSION_HIGH", "SESSION_LOW"]
+  },
+
+  "fvg": {
+    "_comment": "Parametros de FVG/IFVG en LTF.",
+    "ltf": "M1",
+    "ltf_secondary": "M5",
+    "min_size_pips": 1.5,
+    "require_displacement": true
+  },
+
+  "choch": {
+    "_comment": "Parametros del detector de CHoCH post-sweep.",
+    "ltf": "M1",
+    "lookback_bars": 50
+  },
+
+  "execution": {
+    "_comment": "Parametros de ejecucion.",
+    "max_spread_pips": 2.0,
+    "slippage_pips": 1.0,
+    "use_market_orders": true,
+    "retry_on_requote": 2
+  },
+
+  "news_filter": {
+    "_comment": "Bloqueo alrededor de noticias rojas.",
+    "enabled": true,
+    "block_minutes_before": 30,
+    "block_minutes_after": 30,
+    "impacts_blocked": ["HIGH"],
+    "currencies_tracked": ["USD", "EUR", "GBP"],
+    "xml_url": "https://nfs.faireconomy.media/ff_calendar_thisweek.xml",
+    "cache_refresh_hours": 6
+  },
+
+  "journal_api": {
+    "_comment": "Conexion al journal web. Reemplazar URL en deploy.",
+    "enabled": true,
+    "base_url": "http://localhost:3000",
+    "endpoint_trade": "/api/bot/trade",
+    "endpoint_event": "/api/bot/event",
+    "timeout_ms": 5000,
+    "retry_count": 3
+  },
+
+  "alerts": {
+    "_comment": "Notificaciones opcionales.",
+    "telegram_enabled": false,
+    "send_on": ["ENTRY", "TP_HIT", "SL_HIT", "DAILY_CAP", "ERROR"]
+  },
+
+  "logging": {
+    "_comment": "Niveles: DEBUG, INFO, WARN, ERROR.",
+    "level": "INFO",
+    "to_file": true,
+    "to_print": true,
+    "rotate_daily": true
+  }
+}

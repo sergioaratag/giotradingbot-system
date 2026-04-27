@@ -1,0 +1,203 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  passwordHash  String
+  name          String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  trades        Trade[]
+  tasks         Task[]
+  notes         Note[]
+}
+
+model Trade {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+
+  source          TradeSource
+  pair            String
+  direction       TradeDirection
+
+  qualityRating   QualityRating?
+  biasHTF         BiasHTF?
+  inKillzone      Boolean?
+  sessionType     SessionType?
+
+  entryPrice      Float
+  stopLoss        Float
+  takeProfit1     Float?
+  takeProfit2     Float?
+  exitPrice       Float?
+
+  positionSize    Float
+  riskPercent     Float
+  riskUSD         Float
+
+  poolType        String?
+  sweepTimeframe  String?
+  fvgSizePips     Float?
+  timeSweepToChoch Int?
+  spreadAtEntry   Float?
+  atrAtEntry      Float?
+
+  tp1Hit          Boolean  @default(false)
+  tp2Hit          Boolean  @default(false)
+  beHit           Boolean  @default(false)
+  rAchieved       Float?
+  pnlUSD          Float?
+
+  entryTime       DateTime
+  exitTime        DateTime?
+
+  notes           String?  @db.Text
+  screenshotUrl   String?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
+  @@index([entryTime])
+  @@index([pair])
+  @@index([source])
+}
+
+model Task {
+  id          String     @id @default(cuid())
+  userId      String
+  user        User       @relation(fields: [userId], references: [id])
+
+  title       String
+  description String?    @db.Text
+  status      TaskStatus @default(BACKLOG)
+  priority    Priority   @default(MEDIUM)
+  tags        String[]
+
+  forClaudeCode Boolean  @default(false)
+
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  completedAt DateTime?
+
+  @@index([userId])
+  @@index([status])
+}
+
+model Note {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+
+  title       String
+  content     String   @db.Text
+  category    String?
+  tags        String[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@index([category])
+}
+
+model NewsEvent {
+  id          String   @id @default(cuid())
+
+  title       String
+  country     String
+  currency    String
+  impact      NewsImpact
+
+  scheduledAt DateTime
+  actual      String?
+  forecast    String?
+  previous    String?
+
+  source      String   @default("ForexFactory")
+
+  createdAt   DateTime @default(now())
+
+  @@index([scheduledAt])
+  @@index([currency])
+  @@index([impact])
+}
+
+model BotConfig {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       String   @db.Text
+  description String?
+  updatedAt   DateTime @updatedAt
+}
+
+model BotEvent {
+  id          String   @id @default(cuid())
+
+  type        String
+  pair        String?
+  message     String   @db.Text
+  metadata    Json?
+
+  timestamp   DateTime @default(now())
+
+  @@index([timestamp])
+  @@index([type])
+}
+
+enum TradeSource {
+  BOT
+  MANUAL
+}
+
+enum TradeDirection {
+  LONG
+  SHORT
+}
+
+enum QualityRating {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum BiasHTF {
+  BULLISH
+  BEARISH
+  NEUTRAL
+}
+
+enum SessionType {
+  LONDON
+  NY_AM
+  NY_PM
+  OUTSIDE
+}
+
+enum TaskStatus {
+  BACKLOG
+  TODO
+  IN_PROGRESS
+  DONE
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum NewsImpact {
+  LOW
+  MEDIUM
+  HIGH
+}

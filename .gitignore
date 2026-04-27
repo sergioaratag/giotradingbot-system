@@ -1,0 +1,13 @@
+node_modules/
+.next/
+.env*
+*.log
+.DS_Store
+/02-journal-web/.next
+/02-journal-web/node_modules
+*.ex5
+*.ex4
+/01-bot-mql5/Files/news_cache.json
+/03-docs/screenshots/*.png
+/03-docs/screenshots/*.jpg
+/03-docs/backtest/resultados/*.xlsx

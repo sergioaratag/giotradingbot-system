@@ -1,0 +1,43 @@
+@import "tailwindcss";
+
+@theme {
+  /* Paleta Midnight */
+  --color-midnight-50:  #E8EAF2;
+  --color-midnight-100: #C5CADD;
+  --color-midnight-200: #9FA7C5;
+  --color-midnight-300: #7984AD;
+  --color-midnight-400: #5C6A9A;
+  --color-midnight-500: #404F87;
+  --color-midnight-600: #2E3D6D;
+  --color-midnight-700: #1F2C54;
+  --color-midnight-800: #141D3D;
+  --color-midnight-900: #0A1228;
+  --color-midnight-950: #050918;
+
+  /* Profit / loss */
+  --color-profit:        #22C55E;
+  --color-profit-bright: #4ADE80;
+  --color-profit-dark:   #16A34A;
+  --color-loss:          #EF4444;
+  --color-loss-bright:   #F87171;
+  --color-loss-dark:     #DC2626;
+
+  /* Acentos */
+  --color-warning: #F59E0B;
+  --color-info:    #3B82F6;
+
+  /* Tipografía */
+  --font-sans: var(--font-inter), system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), Menlo, monospace;
+}
+
+:root {
+  --background: var(--color-midnight-950);
+  --foreground: var(--color-midnight-50);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+}
