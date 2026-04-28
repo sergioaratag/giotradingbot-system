@@ -36,14 +36,14 @@ export function Sidebar({
 
   return (
     <aside
-      className="fixed inset-y-0 left-0 w-60 bg-coal flex flex-col"
+      className="fixed inset-y-0 left-0 w-60 h-screen bg-coal flex flex-col"
       style={{ borderRight: "0.5px solid var(--color-graphite)" }}
     >
-      <div className="pt-8 pb-6 px-5">
+      <div className="pt-9 pb-7 px-6">
         <Logo size="sm" />
       </div>
 
-      <nav className="flex-1 px-3 space-y-0.5">
+      <nav className="flex-1 px-3 space-y-0.5 overflow-y-auto">
         {NAV.map(({ href, label, icon: Icon }) => {
           const active = pathname === href || pathname.startsWith(href + "/");
           return (
@@ -74,7 +74,7 @@ export function Sidebar({
       </nav>
 
       <div
-        className="mt-auto px-5 py-4"
+        className="mt-auto px-5 pt-4 pb-6"
         style={{ borderTop: "0.5px solid var(--color-graphite)" }}
       >
         <div className="flex items-center gap-3 min-w-0">
@@ -84,8 +84,8 @@ export function Sidebar({
           >
             {initial}
           </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-sm text-cream truncate">
+          <div className="flex-1 min-w-0 overflow-hidden">
+            <div className="text-sm font-medium text-cream truncate">
               {user.name || "Sergio"}
             </div>
             <div className="text-xs text-mute truncate">{user.email}</div>
@@ -93,7 +93,7 @@ export function Sidebar({
         </div>
         <button
           onClick={() => signOut({ callbackUrl: "/login" })}
-          className="mt-3 flex items-center gap-2 text-xs text-mute hover:text-rose transition-colors"
+          className="mt-4 flex items-center gap-2 text-xs text-mute hover:text-rose transition-colors"
         >
           <LogOut className="h-3.5 w-3.5" strokeWidth={1.5} />
           Cerrar sesión

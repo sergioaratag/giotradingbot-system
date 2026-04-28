@@ -7,19 +7,20 @@ type Size = "sm" | "md" | "lg";
 
 const DIMS: Record<Size, { w: number; h: number; viewBox: string; nameY: number; nameSize: number; pathStroke: number; tagY: number; tagSize: number; tagSpacing: number }> = {
   sm: {
-    w: 84,
-    h: 28,
-    viewBox: "0 0 260 100",
+    // Compact viewBox (no tagline area) so "Gio" reads larger at the same SVG height
+    w: 150,
+    h: 40,
+    viewBox: "0 14 260 64",
     nameY: 48,
     nameSize: 38,
-    pathStroke: 1,
+    pathStroke: 1.2,
     tagY: 92,
     tagSize: 7,
     tagSpacing: 5,
   },
   md: {
-    w: 120,
-    h: 40,
+    w: 150,
+    h: 50,
     viewBox: "0 0 260 100",
     nameY: 48,
     nameSize: 38,
