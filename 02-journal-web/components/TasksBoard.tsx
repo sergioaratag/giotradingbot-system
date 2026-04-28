@@ -8,7 +8,7 @@ import {
   useSensors,
   type DragEndEvent,
 } from "@dnd-kit/core";
-import { Plus, Bot } from "lucide-react";
+import { Plus } from "lucide-react";
 import type { Priority, TaskStatus } from "@prisma/client";
 import {
   PRIORITIES,
@@ -16,6 +16,7 @@ import {
   STATUSES,
   type TaskDTO,
 } from "@/lib/tasks";
+import { playSound } from "@/lib/sounds";
 import { KanbanColumn } from "./KanbanColumn";
 import { TaskModal } from "./TaskModal";
 
@@ -73,6 +74,8 @@ export function TasksBoard() {
     const t = tasks.find((x) => x.id === id);
     if (!t || t.status === newStatus) return;
 
+    playSound("tick");
+
     setTasks((prev) =>
       prev.map((x) => (x.id === id ? { ...x, status: newStatus } : x)),
     );
@@ -85,34 +88,56 @@ export function TasksBoard() {
     if (!res.ok) load();
   }
 
+  const filterBtn = (active: boolean) =>
+    `inline-flex items-center gap-1.5 text-xs rounded-md px-2.5 py-1.5 transition-colors uppercase`;
+
   return (
     <div>
-      <div className="flex items-center justify-between gap-3 flex-wrap">
+      <div className="flex items-end justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-midnight-50">Tasks</h1>
-          <p className="text-sm text-midnight-400">
-            Tablero Kanban · arrastra para mover entre columnas
-          </p>
+          <h1
+            className="text-cream"
+            style={{
+              fontFamily: "var(--font-fraunces), serif",
+              fontSize: "2rem",
+              letterSpacing: "-0.01em",
+            }}
+          >
+            Tasks
+          </h1>
         </div>
         <button
           onClick={() => setCreateOpen({ open: true })}
-          className="inline-flex items-center gap-1.5 bg-info hover:bg-info/90 text-white text-sm font-medium rounded-md px-3 py-2"
+          className="inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-xs uppercase font-medium transition-all active:scale-[0.98]"
+          style={{
+            background: "var(--color-rose)",
+            color: "var(--color-onyx)",
+            letterSpacing: "0.18em",
+          }}
         >
-          <Plus className="h-4 w-4" /> Nueva tarea
+          <Plus className="h-3.5 w-3.5" strokeWidth={2} /> Nueva tarea
         </button>
       </div>
 
-      <div className="mt-4 flex items-center gap-3 flex-wrap">
+      <div
+        className="mt-4 flex items-center gap-2 flex-wrap"
+        data-secondary="true"
+      >
         <button
           onClick={() => setOnlyClaude((v) => !v)}
-          className={`inline-flex items-center gap-1.5 text-xs rounded-md px-2.5 py-1.5 border transition-colors ${
-            onlyClaude
-              ? "bg-info/10 border-info/40 text-info"
-              : "bg-midnight-900 border-midnight-800 text-midnight-300 hover:text-midnight-50"
-          }`}
+          className={filterBtn(onlyClaude)}
+          style={{
+            background: onlyClaude
+              ? "rgba(168, 120, 187, 0.10)"
+              : "var(--color-coal)",
+            color: onlyClaude ? "var(--color-violet)" : "var(--color-dust)",
+            border: `0.5px solid ${
+              onlyClaude ? "var(--color-violet)" : "var(--color-graphite)"
+            }`,
+            letterSpacing: "0.14em",
+          }}
         >
-          <Bot className="h-3.5 w-3.5" />
-          {onlyClaude ? "Solo Claude Code" : "Todas"}
+          {onlyClaude ? "Solo Claude" : "Todas"}
         </button>
 
         <select
@@ -120,7 +145,11 @@ export function TasksBoard() {
           onChange={(e) =>
             setPriorityFilter(e.target.value as Priority | "ALL")
           }
-          className="bg-midnight-900 border border-midnight-800 text-midnight-300 text-xs rounded-md px-2.5 py-1.5 outline-none"
+          className="bg-coal text-dust text-xs rounded-md px-2.5 py-1.5 outline-none uppercase"
+          style={{
+            border: "0.5px solid var(--color-graphite)",
+            letterSpacing: "0.12em",
+          }}
         >
           <option value="ALL">Todas las prioridades</option>
           {PRIORITIES.map((p) => (
@@ -130,9 +159,7 @@ export function TasksBoard() {
           ))}
         </select>
 
-        {loading && (
-          <span className="text-xs text-midnight-500">Cargando...</span>
-        )}
+        {loading && <span className="text-xs text-mute">Cargando…</span>}
       </div>
 
       <div className="mt-5 flex gap-4 overflow-x-auto pb-4">

@@ -17,6 +17,34 @@ model User {
   trades        Trade[]
   tasks         Task[]
   notes         Note[]
+  vaultEntries  VaultEntry[]
+}
+
+model VaultEntry {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+
+  type        VaultType
+  title       String?
+  content     String    @db.Text
+  imageUrl    String?
+  pinned      Boolean   @default(false)
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([pinned])
+}
+
+enum VaultType {
+  GOAL
+  QUOTE
+  IMAGE
+  DREAM
+  REMINDER
+  MILESTONE
 }
 
 model Trade {

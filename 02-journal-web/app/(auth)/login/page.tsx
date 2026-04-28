@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { signIn } from "next-auth/react";
+import { Logo } from "@/components/Logo";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -35,63 +36,127 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="w-full max-w-md">
-      <div className="mb-8 text-center">
-        <h1 className="text-3xl font-bold bg-gradient-to-r from-midnight-50 to-midnight-300 bg-clip-text text-transparent">
-          CheoTrader
-        </h1>
-        <p className="mt-1 text-sm text-midnight-300">ICT Trading System</p>
+    <div className="w-full max-w-sm">
+      <div
+        className="flex justify-center mb-12 gio-slide-up"
+        style={{ animationDelay: "0ms" }}
+      >
+        <Logo size="lg" />
       </div>
 
-      <form
-        onSubmit={onSubmit}
-        className="bg-midnight-900 border border-midnight-800 rounded-lg p-6 space-y-4"
-      >
-        <div>
-          <label className="block text-sm text-midnight-300 mb-1.5">Email</label>
+      <form onSubmit={onSubmit} className="space-y-7">
+        <FieldLabel
+          label="Email"
+          delay={200}
+        >
           <input
             type="email"
             required
             autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full bg-midnight-800 border border-midnight-700 rounded-md px-3 py-2 text-midnight-50 outline-none focus:border-info"
+            className="w-full bg-transparent py-2 px-0 text-cream text-sm outline-none transition-colors"
+            style={{
+              borderBottom: "0.5px solid var(--color-graphite)",
+            }}
+            onFocus={(e) =>
+              (e.currentTarget.style.borderBottom = "0.5px solid var(--color-rose)")
+            }
+            onBlur={(e) =>
+              (e.currentTarget.style.borderBottom =
+                "0.5px solid var(--color-graphite)")
+            }
           />
-        </div>
+        </FieldLabel>
 
-        <div>
-          <label className="block text-sm text-midnight-300 mb-1.5">
-            Contraseña
-          </label>
+        <FieldLabel label="Contraseña" delay={350}>
           <input
             type="password"
             required
             autoComplete="current-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full bg-midnight-800 border border-midnight-700 rounded-md px-3 py-2 text-midnight-50 outline-none focus:border-info"
+            className="w-full bg-transparent py-2 px-0 text-cream text-sm outline-none transition-colors"
+            style={{
+              borderBottom: "0.5px solid var(--color-graphite)",
+            }}
+            onFocus={(e) =>
+              (e.currentTarget.style.borderBottom = "0.5px solid var(--color-rose)")
+            }
+            onBlur={(e) =>
+              (e.currentTarget.style.borderBottom =
+                "0.5px solid var(--color-graphite)")
+            }
           />
+        </FieldLabel>
+
+        {error && (
+          <p className="text-xs gio-slide-up" style={{ color: "var(--color-rose-deep)" }}>
+            {error}
+          </p>
+        )}
+
+        <div className="pt-2 gio-slide-up" style={{ animationDelay: "500ms" }}>
+          <button
+            type="submit"
+            disabled={pending}
+            className="w-full py-3 px-12 rounded-md text-xs uppercase font-medium transition-all active:scale-[0.98] disabled:opacity-60"
+            style={{
+              background: "var(--color-rose)",
+              color: "var(--color-onyx)",
+              letterSpacing: "3px",
+            }}
+            onMouseEnter={(e) =>
+              !pending &&
+              (e.currentTarget.style.background = "var(--color-rose-deep)")
+            }
+            onMouseLeave={(e) =>
+              !pending &&
+              (e.currentTarget.style.background = "var(--color-rose)")
+            }
+          >
+            {pending ? "Entrando…" : "Entrar"}
+          </button>
         </div>
 
-        {error && <p className="text-sm text-loss">{error}</p>}
-
-        <button
-          type="submit"
-          disabled={pending}
-          className="w-full bg-info hover:bg-info/90 disabled:opacity-60 text-white font-medium rounded-md px-4 py-2 transition-colors"
-        >
-          {pending ? "Entrando..." : "Entrar"}
-        </button>
-
         {allowRegistration && (
-          <p className="text-center text-sm text-midnight-400">
+          <p className="text-center text-xs text-mute pt-2">
             ¿Sin cuenta?{" "}
-            <Link href="/register" className="text-info hover:underline">
+            <Link href="/register" className="text-rose hover:text-rose-deep">
               Crear una
             </Link>
           </p>
         )}
       </form>
+
+      <div
+        className="mt-16 text-center text-mute"
+        style={{ fontSize: "9px", letterSpacing: "0.32em" }}
+      >
+        EST · 2026
+      </div>
+    </div>
+  );
+}
+
+function FieldLabel({
+  label,
+  delay,
+  children,
+}: {
+  label: string;
+  delay: number;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="gio-slide-up" style={{ animationDelay: `${delay}ms` }}>
+      <label
+        className="block text-mute mb-1.5 uppercase"
+        style={{ fontSize: "10px", letterSpacing: "0.18em" }}
+      >
+        {label}
+      </label>
+      {children}
     </div>
   );
 }

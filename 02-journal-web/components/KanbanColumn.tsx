@@ -22,33 +22,39 @@ export function KanbanColumn({
   return (
     <div
       ref={setNodeRef}
-      className={`flex flex-col w-72 shrink-0 bg-midnight-900/40 border rounded-lg ${
-        isOver ? "border-info" : "border-midnight-800"
-      } transition-colors`}
+      className="flex flex-col w-72 shrink-0 rounded-lg transition-colors"
+      style={{
+        background: "rgba(21,21,26,0.4)",
+        border: `0.5px solid ${
+          isOver ? "var(--color-rose)" : "var(--color-graphite)"
+        }`,
+      }}
     >
-      <div className="flex items-center justify-between px-3 py-2.5 border-b border-midnight-800">
+      <div
+        className="flex items-center justify-between px-3 py-2.5"
+        style={{ borderBottom: "0.5px solid var(--color-graphite)" }}
+      >
         <div className="flex items-center gap-2">
-          <h2 className="text-sm font-semibold text-midnight-50 uppercase tracking-wide">
+          <h2
+            className="text-mute uppercase font-medium"
+            style={{ fontSize: "10px", letterSpacing: "0.18em" }}
+          >
             {STATUS_LABEL[status]}
           </h2>
-          <span className="text-xs font-mono text-midnight-400 bg-midnight-800 rounded px-1.5">
-            {tasks.length}
-          </span>
+          <span className="text-xs font-mono text-dust">{tasks.length}</span>
         </div>
         <button
           onClick={() => onAdd(status)}
-          className="text-midnight-400 hover:text-midnight-50 transition-colors"
+          className="text-mute hover:text-rose transition-colors"
           title="Agregar tarea"
         >
-          <Plus className="h-4 w-4" />
+          <Plus className="h-3.5 w-3.5" strokeWidth={1.5} />
         </button>
       </div>
 
       <div className="flex-1 p-2 space-y-2 overflow-y-auto min-h-32">
         {tasks.length === 0 ? (
-          <div className="text-xs text-midnight-500 text-center py-4">
-            Sin tareas
-          </div>
+          <div className="text-xs text-mute text-center py-4">Sin tareas</div>
         ) : (
           tasks.map((t) => (
             <TaskCard key={t.id} task={t} onClick={() => onSelect(t)} />

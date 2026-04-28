@@ -54,6 +54,29 @@ const SEED_TASKS = [
   },
 ];
 
+const SEED_VAULT = [
+  {
+    type: "QUOTE" as const,
+    title: "Mark Douglas",
+    content: "El mercado no premia al ocupado, premia al paciente.",
+    pinned: true,
+  },
+  {
+    type: "GOAL" as const,
+    title: "Pasar el challenge de Orion",
+    content:
+      "En menos de 30 días. Disciplina diaria, riesgo dentro de plan.",
+    pinned: true,
+  },
+  {
+    type: "REMINDER" as const,
+    title: "Quién soy en el mercado",
+    content:
+      "Eres planificador. Eres paciente. Eres letal cuando aparece tu setup.",
+    pinned: false,
+  },
+];
+
 async function main() {
   const user = await prisma.user.findFirst({
     orderBy: { createdAt: "asc" },
@@ -65,18 +88,29 @@ async function main() {
     return;
   }
 
-  const count = await prisma.task.count({ where: { userId: user.id } });
-  if (count > 0) {
-    console.log(
-      `[seed] el usuario ya tiene ${count} tasks — skip (no quiero duplicar).`,
-    );
-    return;
+  const taskCount = await prisma.task.count({ where: { userId: user.id } });
+  if (taskCount === 0) {
+    await prisma.task.createMany({
+      data: SEED_TASKS.map((t) => ({ ...t, userId: user.id })),
+    });
+    console.log(`[seed] insertadas ${SEED_TASKS.length} tasks para ${user.email}`);
+  } else {
+    console.log(`[seed] tasks ya existen (${taskCount}) — skip`);
   }
 
-  await prisma.task.createMany({
-    data: SEED_TASKS.map((t) => ({ ...t, userId: user.id })),
+  const vaultCount = await prisma.vaultEntry.count({
+    where: { userId: user.id },
   });
-  console.log(`[seed] insertadas ${SEED_TASKS.length} tasks para ${user.email}`);
+  if (vaultCount === 0) {
+    await prisma.vaultEntry.createMany({
+      data: SEED_VAULT.map((v) => ({ ...v, userId: user.id })),
+    });
+    console.log(
+      `[seed] insertadas ${SEED_VAULT.length} entradas de vault para ${user.email}`,
+    );
+  } else {
+    console.log(`[seed] vault ya existe (${vaultCount}) — skip`);
+  }
 }
 
 main()

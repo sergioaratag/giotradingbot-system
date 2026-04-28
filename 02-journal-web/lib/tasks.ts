@@ -29,16 +29,17 @@ export const STATUS_LABEL: Record<TaskStatus, string> = {
 
 export const PRIORITIES: Priority[] = ["URGENT", "HIGH", "MEDIUM", "LOW"];
 
-export const PRIORITY_BORDER: Record<Priority, string> = {
-  URGENT: "border-l-loss",
-  HIGH: "border-l-warning",
-  MEDIUM: "border-l-info",
-  LOW: "border-l-midnight-400",
-};
-
 export const PRIORITY_LABEL: Record<Priority, string> = {
   URGENT: "Urgent",
   HIGH: "High",
   MEDIUM: "Medium",
   LOW: "Low",
+};
+
+// Dot color indicator — no border-l, respeta no-radius rule
+export const PRIORITY_DOT: Record<Priority, string | null> = {
+  URGENT: "var(--color-rose)",
+  HIGH: "var(--color-violet)",
+  MEDIUM: "var(--color-dust)",
+  LOW: null,
 };

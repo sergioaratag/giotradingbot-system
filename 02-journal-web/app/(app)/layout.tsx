@@ -2,6 +2,7 @@ import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
 import { Header } from "@/components/Header";
+import { FocusMode } from "@/components/FocusMode";
 
 export default async function AppLayout({
   children,
@@ -12,14 +13,15 @@ export default async function AppLayout({
   if (!session?.user) redirect("/login");
 
   return (
-    <div className="min-h-screen bg-midnight-950">
+    <div className="min-h-screen bg-onyx">
       <Sidebar
         user={{ name: session.user.name, email: session.user.email }}
       />
       <div className="pl-60 flex flex-col min-h-screen">
         <Header botOnline={false} />
-        <main className="flex-1 p-6">{children}</main>
+        <main className="flex-1 p-8">{children}</main>
       </div>
+      <FocusMode />
     </div>
   );
 }

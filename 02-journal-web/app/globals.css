@@ -1,43 +1,127 @@
 @import "tailwindcss";
 
 @theme {
-  /* Paleta Midnight */
-  --color-midnight-50:  #E8EAF2;
-  --color-midnight-100: #C5CADD;
-  --color-midnight-200: #9FA7C5;
-  --color-midnight-300: #7984AD;
-  --color-midnight-400: #5C6A9A;
-  --color-midnight-500: #404F87;
-  --color-midnight-600: #2E3D6D;
-  --color-midnight-700: #1F2C54;
-  --color-midnight-800: #141D3D;
-  --color-midnight-900: #0A1228;
-  --color-midnight-950: #050918;
+  /* GIO Premium — Lujo silencioso */
 
-  /* Profit / loss */
-  --color-profit:        #22C55E;
-  --color-profit-bright: #4ADE80;
-  --color-profit-dark:   #16A34A;
-  --color-loss:          #EF4444;
-  --color-loss-bright:   #F87171;
-  --color-loss-dark:     #DC2626;
+  /* Negros profundos */
+  --color-void: #050507;
+  --color-onyx: #0A0A0B;
+  --color-coal: #15151A;
+  --color-graphite: #1F1F26;
+  --color-shadow: #2A2A30;
 
-  /* Acentos */
-  --color-warning: #F59E0B;
-  --color-info:    #3B82F6;
+  /* Crema cálido */
+  --color-cream: #F5F1E8;
+  --color-cream-muted: #C9C5BC;
+  --color-dust: #8B8780;
+  --color-mute: #6B6B70;
 
-  /* Tipografía */
-  --font-sans: var(--font-inter), system-ui, sans-serif;
-  --font-mono: var(--font-jetbrains-mono), Menlo, monospace;
+  /* Acentos GIO */
+  --color-rose: #C77797;
+  --color-rose-deep: #A85F7E;
+  --color-violet: #A878BB;
+  --color-violet-deep: #8B5C9E;
+
+  /* Estados */
+  --color-profit: #C77797;
+  --color-profit-bright: #D88BA8;
+  --color-loss: #6B6B70;
+  --color-warning: #B89968;
+  --color-info: #A878BB;
+
+  /* Special */
+  --color-gold: #C9A96E;
+
+  /* Fuentes */
+  --font-sans: var(--font-inter-tight), 'Inter Tight', 'Inter', system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), 'Geist Mono', 'JetBrains Mono', ui-monospace, monospace;
+  --font-serif: var(--font-fraunces), 'Fraunces', 'Cormorant Garamond', Georgia, serif;
+  --font-italic: var(--font-cormorant), 'Cormorant Garamond', Georgia, serif;
 }
 
 :root {
-  --background: var(--color-midnight-950);
-  --foreground: var(--color-midnight-50);
+  --background: var(--color-onyx);
+  --foreground: var(--color-cream);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
+  font-feature-settings: "ss01", "cv11";
+}
+
+/* Focus mode — secondary elements fade out */
+body.focus-mode [data-secondary="true"] {
+  opacity: 0.18;
+  transition: opacity 400ms ease-out;
+}
+
+body:not(.focus-mode) [data-secondary="true"] {
+  opacity: 1;
+  transition: opacity 400ms ease-out;
+}
+
+/* Spring entry for cards */
+@keyframes gio-spring-in {
+  0%   { transform: scale(0.95); opacity: 0; }
+  100% { transform: scale(1);    opacity: 1; }
+}
+
+.gio-spring {
+  animation: gio-spring-in 350ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Slide-up fade for hero */
+@keyframes gio-slide-up {
+  0%   { transform: translateY(8px); opacity: 0; }
+  100% { transform: translateY(0);   opacity: 1; }
+}
+
+.gio-slide-up {
+  animation: gio-slide-up 600ms ease-out both;
+}
+
+/* Pulse for killzone dot */
+@keyframes gio-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.4; }
+}
+
+.gio-pulse {
+  animation: gio-pulse 2.4s ease-in-out infinite;
+}
+
+/* Easter egg overlay */
+@keyframes gio-hala {
+  0%   { opacity: 0; transform: scale(0.96); }
+  20%  { opacity: 1; transform: scale(1); }
+  80%  { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.02); }
+}
+
+.gio-hala {
+  animation: gio-hala 3000ms ease-in-out forwards;
+}
+
+/* Selection */
+::selection {
+  background: var(--color-rose);
+  color: var(--color-onyx);
+}
+
+/* Scrollbar discreto */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-graphite);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-shadow);
 }

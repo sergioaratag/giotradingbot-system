@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Trash2, X, Bot } from "lucide-react";
+import { Trash2, X } from "lucide-react";
 import {
   PRIORITIES,
   PRIORITY_LABEL,
@@ -9,6 +9,7 @@ import {
   STATUS_LABEL,
   type TaskDTO,
 } from "@/lib/tasks";
+import { playSound } from "@/lib/sounds";
 import type { Priority, TaskStatus } from "@prisma/client";
 
 type Mode = "create" | "edit";
@@ -41,7 +42,15 @@ export function TaskModal({
   const [error, setError] = useState<string | null>(null);
 
   const titleRef = useRef<HTMLInputElement>(null);
-  useEffect(() => titleRef.current?.focus(), []);
+  useEffect(() => {
+    titleRef.current?.focus();
+    playSound("open");
+  }, []);
+
+  function close() {
+    playSound("close");
+    onClose();
+  }
 
   function commitTag() {
     const t = tagInput.trim().replace(/,$/, "");
@@ -83,6 +92,7 @@ export function TaskModal({
         const j = await res.json().catch(() => ({}));
         throw new Error(j.error ?? "Error al guardar");
       }
+      playSound("success");
       onSaved();
     } catch (err) {
       setError((err as Error).message);
@@ -104,65 +114,77 @@ export function TaskModal({
     }
   }
 
+  const inputCls =
+    "w-full bg-onyx text-cream text-sm rounded-md px-3 py-2 outline-none transition-colors";
+  const inputStyle = { border: "0.5px solid var(--color-graphite)" } as const;
+
   return (
     <div
-      className="fixed inset-0 z-50 bg-midnight-950/80 backdrop-blur-sm flex items-center justify-center p-4"
-      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{
+        background: "rgba(5,5,7,0.78)",
+        backdropFilter: "blur(6px)",
+      }}
+      onClick={close}
     >
       <form
         onSubmit={onSubmit}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-2xl bg-midnight-900 border border-midnight-700 rounded-lg shadow-2xl"
+        className="w-full max-w-2xl bg-coal rounded-lg gio-spring"
+        style={{ border: "0.5px solid var(--color-shadow)" }}
       >
-        <div className="flex items-center justify-between p-4 border-b border-midnight-800">
-          <h2 className="text-lg font-semibold text-midnight-50">
+        <div
+          className="flex items-center justify-between p-4"
+          style={{ borderBottom: "0.5px solid var(--color-graphite)" }}
+        >
+          <h2
+            className="text-cream"
+            style={{
+              fontFamily: "var(--font-fraunces), serif",
+              fontSize: "1.1rem",
+            }}
+          >
             {mode === "create" ? "Nueva tarea" : "Editar tarea"}
           </h2>
           <button
             type="button"
-            onClick={onClose}
-            className="text-midnight-400 hover:text-midnight-50 transition-colors"
+            onClick={close}
+            className="text-mute hover:text-cream transition-colors"
           >
-            <X className="h-5 w-5" />
+            <X className="h-5 w-5" strokeWidth={1.5} />
           </button>
         </div>
 
         <div className="p-4 space-y-4">
-          <div>
-            <label className="block text-xs uppercase tracking-wide text-midnight-400 mb-1">
-              Título *
-            </label>
+          <Field label="Título *">
             <input
               ref={titleRef}
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full bg-midnight-800 border border-midnight-700 rounded-md px-3 py-2 text-midnight-50 outline-none focus:border-info"
+              className={inputCls}
+              style={inputStyle}
             />
-          </div>
+          </Field>
 
-          <div>
-            <label className="block text-xs uppercase tracking-wide text-midnight-400 mb-1">
-              Descripción
-            </label>
+          <Field label="Descripción">
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={4}
-              className="w-full bg-midnight-800 border border-midnight-700 rounded-md px-3 py-2 text-midnight-50 outline-none focus:border-info font-mono text-sm"
-              placeholder="Soporta markdown..."
+              className={`${inputCls} font-mono`}
+              style={inputStyle}
+              placeholder="Soporta markdown…"
             />
-          </div>
+          </Field>
 
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs uppercase tracking-wide text-midnight-400 mb-1">
-                Prioridad
-              </label>
+            <Field label="Prioridad">
               <select
                 value={priority}
                 onChange={(e) => setPriority(e.target.value as Priority)}
-                className="w-full bg-midnight-800 border border-midnight-700 rounded-md px-3 py-2 text-midnight-50 outline-none focus:border-info"
+                className={inputCls}
+                style={inputStyle}
               >
                 {PRIORITIES.map((p) => (
                   <option key={p} value={p}>
@@ -170,17 +192,15 @@ export function TaskModal({
                   </option>
                 ))}
               </select>
-            </div>
+            </Field>
 
             {mode === "edit" && (
-              <div>
-                <label className="block text-xs uppercase tracking-wide text-midnight-400 mb-1">
-                  Status
-                </label>
+              <Field label="Status">
                 <select
                   value={status}
                   onChange={(e) => setStatus(e.target.value as TaskStatus)}
-                  className="w-full bg-midnight-800 border border-midnight-700 rounded-md px-3 py-2 text-midnight-50 outline-none focus:border-info"
+                  className={inputCls}
+                  style={inputStyle}
                 >
                   {STATUSES.map((s) => (
                     <option key={s} value={s}>
@@ -188,25 +208,23 @@ export function TaskModal({
                     </option>
                   ))}
                 </select>
-              </div>
+              </Field>
             )}
           </div>
 
-          <div>
-            <label className="block text-xs uppercase tracking-wide text-midnight-400 mb-1">
-              Tags
-            </label>
+          <Field label="Tags">
             <div className="flex flex-wrap gap-1.5 mb-2">
               {tags.map((t) => (
                 <span
                   key={t}
-                  className="inline-flex items-center gap-1 bg-midnight-800 text-midnight-200 rounded px-2 py-0.5 text-xs"
+                  className="inline-flex items-center gap-1 bg-shadow text-dust rounded-sm px-2 py-0.5 text-xs uppercase"
+                  style={{ letterSpacing: "0.08em" }}
                 >
                   {t}
                   <button
                     type="button"
                     onClick={() => setTags(tags.filter((x) => x !== t))}
-                    className="hover:text-loss"
+                    className="hover:text-rose"
                   >
                     ×
                   </button>
@@ -224,42 +242,56 @@ export function TaskModal({
                 }
               }}
               onBlur={commitTag}
-              placeholder="Agregar tag (Enter o coma)"
-              className="w-full bg-midnight-800 border border-midnight-700 rounded-md px-3 py-2 text-midnight-50 outline-none focus:border-info text-sm"
+              placeholder="Enter o coma para agregar"
+              className={inputCls}
+              style={inputStyle}
             />
-          </div>
+          </Field>
 
-          <label className="flex items-start gap-3 bg-midnight-800/50 border border-midnight-700 rounded-md p-3 cursor-pointer hover:bg-midnight-800 transition-colors">
+          <label
+            className="flex items-start gap-3 rounded-md p-3 cursor-pointer transition-colors hover:bg-shadow/40"
+            style={{ border: "0.5px solid var(--color-graphite)" }}
+          >
             <input
               type="checkbox"
               checked={forClaudeCode}
               onChange={(e) => setForClaudeCode(e.target.checked)}
-              className="mt-0.5 accent-info"
+              className="mt-0.5"
+              style={{ accentColor: "var(--color-violet)" }}
             />
             <div>
-              <div className="flex items-center gap-1.5 text-sm font-medium text-midnight-50">
-                <Bot className="h-4 w-4 text-info" />
-                Esta tarea es para Claude Code
+              <div
+                className="text-violet uppercase"
+                style={{ fontSize: "10px", letterSpacing: "0.18em" }}
+              >
+                For Claude Code
               </div>
-              <p className="text-xs text-midnight-400 mt-0.5">
+              <p className="text-xs text-dust mt-0.5">
                 Aparecerá filtrada cuando Claude Code consulte tareas.
               </p>
             </div>
           </label>
 
-          {error && <p className="text-sm text-loss">{error}</p>}
+          {error && (
+            <p className="text-sm" style={{ color: "var(--color-rose-deep)" }}>
+              {error}
+            </p>
+          )}
         </div>
 
-        <div className="flex items-center justify-between p-4 border-t border-midnight-800">
+        <div
+          className="flex items-center justify-between p-4"
+          style={{ borderTop: "0.5px solid var(--color-graphite)" }}
+        >
           <div>
             {mode === "edit" && (
               <button
                 type="button"
                 onClick={onDelete}
                 disabled={pending}
-                className="inline-flex items-center gap-1.5 text-sm text-loss hover:text-loss-bright disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 text-sm text-mute hover:text-rose-deep disabled:opacity-50"
               >
-                <Trash2 className="h-4 w-4" />
+                <Trash2 className="h-4 w-4" strokeWidth={1.5} />
                 Eliminar
               </button>
             )}
@@ -267,21 +299,46 @@ export function TaskModal({
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={onClose}
-              className="text-sm text-midnight-400 hover:text-midnight-50 px-3 py-2"
+              onClick={close}
+              className="text-sm text-mute hover:text-cream px-3 py-2"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={pending}
-              className="bg-info hover:bg-info/90 disabled:opacity-60 text-white font-medium rounded-md px-4 py-2 text-sm"
+              className="rounded-md px-4 py-2 text-xs uppercase font-medium transition-all active:scale-[0.98] disabled:opacity-60"
+              style={{
+                background: "var(--color-rose)",
+                color: "var(--color-onyx)",
+                letterSpacing: "0.18em",
+              }}
             >
-              {pending ? "Guardando..." : "Guardar"}
+              {pending ? "Guardando…" : "Guardar"}
             </button>
           </div>
         </div>
       </form>
+    </div>
+  );
+}
+
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <label
+        className="block text-mute mb-1.5 uppercase"
+        style={{ fontSize: "10px", letterSpacing: "0.18em" }}
+      >
+        {label}
+      </label>
+      {children}
     </div>
   );
 }

@@ -1,20 +1,41 @@
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import {
+  Inter_Tight,
+  Geist_Mono,
+  Fraunces,
+  Cormorant_Garamond,
+} from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({
-  variable: "--font-inter",
+const interTight = Inter_Tight({
+  variable: "--font-inter-tight",
   subsets: ["latin"],
+  weight: ["300", "400", "500"],
 });
 
-const jetbrainsMono = JetBrains_Mono({
-  variable: "--font-jetbrains-mono",
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
   subsets: ["latin"],
+  weight: ["400", "500"],
+});
+
+const fraunces = Fraunces({
+  variable: "--font-fraunces",
+  subsets: ["latin"],
+  weight: ["400", "500"],
+  style: ["normal", "italic"],
+});
+
+const cormorant = Cormorant_Garamond({
+  variable: "--font-cormorant",
+  subsets: ["latin"],
+  weight: ["400"],
+  style: ["italic", "normal"],
 });
 
 export const metadata: Metadata = {
-  title: "CheoTrader Journal",
-  description: "Personal trading journal & dashboard for the CheoTrader ICT System",
+  title: "GioTradingBot — ICT",
+  description: "GIO · Personal trading journal & dashboard. ICT Trading System.",
 };
 
 export default function RootLayout({
@@ -25,9 +46,9 @@ export default function RootLayout({
   return (
     <html
       lang="es"
-      className={`${inter.variable} ${jetbrainsMono.variable} h-full antialiased`}
+      className={`${interTight.variable} ${geistMono.variable} ${fraunces.variable} ${cormorant.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-midnight-950 text-midnight-50">
+      <body className="min-h-full flex flex-col bg-onyx text-cream font-sans antialiased">
         {children}
       </body>
     </html>
