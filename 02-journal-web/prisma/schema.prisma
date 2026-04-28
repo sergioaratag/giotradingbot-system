@@ -60,6 +60,7 @@ model Trade {
   biasHTF         BiasHTF?
   inKillzone      Boolean?
   sessionType     SessionType?
+  killzone        String?
 
   entryPrice      Float
   stopLoss        Float
@@ -87,8 +88,12 @@ model Trade {
   entryTime       DateTime
   exitTime        DateTime?
 
+  preTradeNotes   String?  @db.Text
+  postTradeNotes  String?  @db.Text
   notes           String?  @db.Text
   screenshotUrl   String?
+
+  confluences     TradeConfluence[]
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -97,6 +102,17 @@ model Trade {
   @@index([entryTime])
   @@index([pair])
   @@index([source])
+}
+
+model TradeConfluence {
+  id          String   @id @default(cuid())
+  tradeId     String
+  trade       Trade    @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  conceptKey  String
+  createdAt   DateTime @default(now())
+
+  @@index([tradeId])
+  @@index([conceptKey])
 }
 
 model Task {
