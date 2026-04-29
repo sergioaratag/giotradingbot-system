@@ -1,19 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { activeKillzone, nextKillzone, formatHM } from "@/lib/killzones";
+import { formatDuration, minutesToDuration } from "@/lib/market-state";
+import { useMarketState } from "@/hooks/useMarketState";
 
 export function NextKillzoneCard() {
-  const [now, setNow] = useState<Date | null>(null);
-
-  useEffect(() => {
-    setNow(new Date());
-    const id = window.setInterval(() => setNow(new Date()), 30_000);
-    return () => window.clearInterval(id);
-  }, []);
-
-  const current = now ? activeKillzone(now) : null;
-  const nx = now ? nextKillzone(now) : null;
+  const market = useMarketState();
 
   return (
     <div
@@ -24,24 +15,52 @@ export function NextKillzoneCard() {
         className="inline-block h-2 w-2 rounded-full gio-pulse"
         style={{ background: "var(--color-rose)" }}
       />
-      <div className="flex-1 text-sm">
-        {current ? (
-          <>
-            <span className="text-cream">Killzone {current.label} activa</span>
-            <span className="text-dust"> · setups en juego</span>
-          </>
-        ) : nx ? (
-          <>
-            <span className="text-cream-muted">Próxima killzone:</span>{" "}
-            <span className="text-cream">{nx.zone.label}</span>{" "}
-            <span className="text-dust">
-              en {formatHM(nx.minutesUntil)}
-            </span>
-          </>
-        ) : (
-          <span className="text-dust">Cargando…</span>
-        )}
-      </div>
+      <div className="flex-1 text-sm">{renderBody(market)}</div>
     </div>
+  );
+}
+
+function renderBody(market: ReturnType<typeof useMarketState>) {
+  if (!market) return <span className="text-dust">Cargando…</span>;
+
+  if (market.state === "killzone-active") {
+    return (
+      <>
+        <span className="text-cream-muted">Killzone activa:</span>{" "}
+        <span className="text-cream">{market.currentKillzone}</span>{" "}
+        <span className="text-dust">
+          · cierra en{" "}
+          {market.closesIn ? formatDuration(market.closesIn) : "—"}
+        </span>
+      </>
+    );
+  }
+
+  if (
+    market.state === "session-active-no-kz" ||
+    market.state === "session-inactive"
+  ) {
+    if (!market.nextKillzone) {
+      return <span className="text-dust">—</span>;
+    }
+    return (
+      <>
+        <span className="text-cream-muted">Próxima killzone:</span>{" "}
+        <span className="text-cream">{market.nextKillzone.name}</span>{" "}
+        <span className="text-dust">
+          en{" "}
+          {formatDuration(minutesToDuration(market.nextKillzone.inMinutes))}
+        </span>
+      </>
+    );
+  }
+
+  // weekend
+  return (
+    <>
+      <span className="text-cream-muted">Próxima killzone:</span>{" "}
+      <span className="text-cream">London KZ</span>{" "}
+      <span className="text-dust">· lunes 02:00 NY</span>
+    </>
   );
 }

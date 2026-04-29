@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef, useState, useEffect } from "react";
+import Link from "next/link";
+import { useRef, useState, useEffect, type MouseEvent } from "react";
 import { createPortal } from "react-dom";
 
 type Size = "sm" | "md" | "lg";
@@ -57,11 +58,12 @@ export function Logo({
   const clicksRef = useRef<number[]>([]);
   const [hala, setHala] = useState(false);
 
-  function onClick() {
+  function onClick(e: MouseEvent<HTMLAnchorElement>) {
     const now = Date.now();
     clicksRef.current = clicksRef.current.filter((t) => now - t < 1500);
     clicksRef.current.push(now);
     if (clicksRef.current.length >= 3) {
+      e.preventDefault();
       clicksRef.current = [];
       setHala(true);
       window.setTimeout(() => setHala(false), 3000);
@@ -70,11 +72,11 @@ export function Logo({
 
   return (
     <>
-      <button
-        type="button"
+      <Link
+        href="/dashboard"
         onClick={onClick}
-        aria-label="GIO"
-        className={`inline-flex items-center select-none cursor-pointer ${className}`}
+        aria-label="GIO · ir al dashboard"
+        className={`inline-flex items-center select-none cursor-pointer transition-opacity hover:opacity-80 ${className}`}
         style={{ background: "transparent", border: "none", padding: 0 }}
       >
         <svg
@@ -120,7 +122,7 @@ export function Logo({
             </text>
           )}
         </svg>
-      </button>
+      </Link>
       {hala && <HalaOverlay />}
     </>
   );

@@ -1,10 +1,10 @@
-// Killzones ICT en hora de Nueva York (America/New_York)
-// London Open: 02:00-05:00 NY
-// NY AM: 08:30-11:00 NY
-// NY PM: 13:30-16:00 NY
+// Killzones ICT en hora de Nueva York (America/New_York).
+// London KZ : 02:00 – 05:00 NY
+// NY AM     : 07:00 – 10:00 NY
+// NY Lunch  : 11:00 – 12:30 NY (zona de reversión, válida para el bot)
 
 export type Killzone = {
-  id: "LDN" | "NY_AM" | "NY_PM";
+  id: "LDN" | "NY_AM" | "NY_LUNCH";
   label: string;
   startMin: number; // minutos desde 00:00 NY
   endMin: number;
@@ -12,8 +12,8 @@ export type Killzone = {
 
 export const KILLZONES: Killzone[] = [
   { id: "LDN", label: "London", startMin: 2 * 60, endMin: 5 * 60 },
-  { id: "NY_AM", label: "NY AM", startMin: 8 * 60 + 30, endMin: 11 * 60 },
-  { id: "NY_PM", label: "NY PM", startMin: 13 * 60 + 30, endMin: 16 * 60 },
+  { id: "NY_AM", label: "NY AM", startMin: 7 * 60, endMin: 10 * 60 },
+  { id: "NY_LUNCH", label: "NY Lunch", startMin: 11 * 60, endMin: 12 * 60 + 30 },
 ];
 
 export function nyParts(date: Date = new Date()) {
