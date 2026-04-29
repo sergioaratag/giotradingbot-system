@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
+import { AlertTriangle } from "lucide-react";
 import { activeKillzone, formatNYClock } from "@/lib/killzones";
+import { useNewsBlock } from "@/hooks/useNewsBlock";
 
 const LABELS: Record<string, string> = {
   dashboard: "Dashboard",
@@ -40,6 +42,7 @@ export function Header({ botOnline = false }: { botOnline?: boolean }) {
 
   const kz = now ? activeKillzone(now) : null;
   const clock = now ? formatNYClock(now) : "—";
+  const block = useNewsBlock();
 
   return (
     <header
@@ -58,6 +61,22 @@ export function Header({ botOnline = false }: { botOnline?: boolean }) {
       </div>
 
       <div className="flex items-center gap-4">
+        {block.isBlocked && (
+          <span
+            title={block.reason}
+            className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] uppercase font-medium"
+            style={{
+              background: "rgba(199, 119, 151, 0.14)",
+              color: "var(--color-rose)",
+              letterSpacing: "0.14em",
+              border: "0.5px solid rgba(199, 119, 151, 0.35)",
+            }}
+          >
+            <AlertTriangle className="h-3 w-3" strokeWidth={1.8} />
+            Bot bloqueado
+          </span>
+        )}
+
         {kz && (
           <span
             className="px-2 py-0.5 rounded-md text-[10px] uppercase font-medium"
