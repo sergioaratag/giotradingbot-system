@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
 import { Header } from "@/components/Header";
 import { FocusMode } from "@/components/FocusMode";
+import { KillSwitchBanner } from "@/components/KillSwitchBanner";
 
 export default async function AppLayout({
   children,
@@ -18,6 +19,7 @@ export default async function AppLayout({
         user={{ name: session.user.name, email: session.user.email }}
       />
       <div className="pl-60 flex flex-col min-h-screen">
+        <KillSwitchBanner />
         <Header botOnline={false} />
         <main className="flex-1 p-8">{children}</main>
       </div>

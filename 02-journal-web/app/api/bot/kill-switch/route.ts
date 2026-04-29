@@ -1,0 +1,69 @@
+import { NextResponse } from "next/server";
+import { auth } from "@/auth";
+import { prisma } from "@/lib/prisma";
+
+export const dynamic = "force-dynamic";
+
+const KILL = "BotKillSwitch";
+const ENABLED = "BotEnabled";
+
+async function readFlag(key: string): Promise<boolean> {
+  const row = await prisma.botConfig.findUnique({ where: { key } });
+  return row?.value === "true";
+}
+
+// Bot polling endpoint — auth via X-Bot-Api-Key.
+// Returns the killSwitch + enabled flags only.
+export async function GET(req: Request) {
+  const apiKey = req.headers.get("x-bot-api-key");
+  const expected = process.env.BOT_API_KEY;
+  if (!expected || apiKey !== expected) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  const [killSwitch, botEnabled] = await Promise.all([
+    readFlag(KILL),
+    readFlag(ENABLED),
+  ]);
+  return NextResponse.json({ killSwitch, botEnabled });
+}
+
+// User session endpoint — toggles the kill switch.
+export async function POST(req: Request) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const body = await req.json().catch(() => ({}));
+  const activated = Boolean(body.activated);
+
+  await prisma.botConfig.upsert({
+    where: { key: KILL },
+    create: {
+      key: KILL,
+      value: String(activated),
+      description: "Kill switch activado (override)",
+    },
+    update: { value: String(activated) },
+  });
+
+  if (activated) {
+    await prisma.botEvent.create({
+      data: {
+        type: "KILL_SWITCH",
+        message: "Activated by user",
+        metadata: { userId: session.user.id, userEmail: session.user.email },
+      },
+    });
+  } else {
+    await prisma.botEvent.create({
+      data: {
+        type: "KILL_SWITCH",
+        message: "Deactivated by user",
+        metadata: { userId: session.user.id, userEmail: session.user.email },
+      },
+    });
+  }
+
+  return NextResponse.json({ ok: true, killSwitch: activated });
+}

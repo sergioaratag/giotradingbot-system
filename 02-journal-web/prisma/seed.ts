@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 import { PrismaNeon } from "@prisma/adapter-neon";
+import { BOT_CONFIG_SPECS } from "../lib/bot-config";
 
 const prisma = new PrismaClient({
   adapter: new PrismaNeon({ connectionString: process.env.DATABASE_URL! }),
@@ -395,7 +396,25 @@ async function main() {
   }
 }
 
+async function seedBotConfigs() {
+  for (const spec of BOT_CONFIG_SPECS) {
+    await prisma.botConfig.upsert({
+      where: { key: spec.key },
+      create: {
+        key: spec.key,
+        value: spec.default,
+        description: spec.description,
+      },
+      update: { description: spec.description },
+    });
+  }
+  console.log(
+    `[seed] BotConfig sincronizado (${BOT_CONFIG_SPECS.length} keys, valores existentes preservados)`,
+  );
+}
+
 main()
+  .then(seedBotConfigs)
   .catch((e) => {
     console.error(e);
     process.exit(1);
