@@ -54,6 +54,106 @@ const SEED_TASKS = [
   },
 ];
 
+const SEED_NOTES = [
+  {
+    category: "aprendizaje",
+    title: "Reglas no negociables del bot",
+    tags: ["bot", "spec", "reglas-duras"],
+    content: `# Reglas no negociables del bot ICT
+
+Estas son las **9 reglas duras** del SPEC_BOT_ICT.md (sección 1.2). Si una se rompe, **no hay trade** — sin excepciones.
+
+1. **Solo opera dentro de killzones válidas** (LDN-KZ, NY-AM-KZ, NY-PM-KZ).
+2. **Spread máximo 1.5 pips** al momento de entrar. Si está más alto, se descarta el setup.
+3. **Bloqueo de 30 minutos antes y después** de cualquier noticia roja del par operado.
+4. **Riesgo fijo por trade** (configurado en BotConfig). Nunca se sube tras una pérdida.
+5. **Liquidez clara identificada** (sweep H1/H4/15m sobre EQH/EQL/Asian H/Asian L o similar).
+6. **Confirmación de entrada obligatoria**: CHoCH **o** FVG válido en LTF tras el sweep.
+7. **R:R mínimo 1:2** medido del entry al TP1. Si no llega, el setup no se toma.
+8. **Cierre forzado** al final de la killzone activa si el trade no ha tocado TP1.
+9. **Máximo 2 pérdidas consecutivas** → el bot se detiene hasta revisión manual.
+
+> Si el bot rompe alguna de estas, no es disciplina lo que falla — es código.
+`,
+  },
+  {
+    category: "reflexion",
+    title: "Por qué hago esto",
+    tags: ["motivacion", "porque"],
+    content: `# Por qué hago esto
+
+No es por el dinero. Es por la **libertad** que el dinero compra: tiempo, autonomía, capacidad de elegir.
+
+Cada trade que ejecuto disciplinadamente es una repetición que entrena al hombre que quiero ser. El mercado no es el oponente — el oponente es mi yo impulsivo, el que quiere recuperar la pérdida en cinco minutos.
+
+- **Disciplina sobre intuición.**
+- **Plan sobre emoción.**
+- **Proceso sobre resultado.**
+
+El bot existe porque mi yo de mañana no debería tener que recordar todo lo que aprendió mi yo de hoy. El journal existe por la misma razón.
+
+> "El mercado no premia al ocupado, premia al paciente."
+`,
+  },
+  {
+    category: "setup",
+    title: "Mi setup A+: Sweep H1 + FVG 3m + CHoCH",
+    tags: ["setup", "ict", "a-plus"],
+    content: `# Setup A+: Sweep H1 + FVG 3m + CHoCH
+
+Este es el setup canónico de la estrategia. **Si los 3 elementos están alineados, el riesgo se sube al máximo permitido (1.5%).**
+
+## 1. Bias HTF claro
+- Daily y H4 alineados (ambos bullish o ambos bearish).
+- Si están en conflicto → no hay setup A+, máximo B.
+
+## 2. Sweep H1 sobre liquidez relevante
+- Sweep limpio de **Asian High / Asian Low**, **PDH/PDL**, **London High/Low** o **EQH/EQL** del rango.
+- La mecha debe perforar el nivel y la vela H1 debe cerrar de regreso.
+
+## 3. FVG en 3m (timeframe de entrada)
+- FVG creado por la vela de desplazamiento contraria al sweep.
+- Tamaño mínimo: 3 pips en pares mayores. Por debajo se considera ruido.
+- Idealmente alineado con un OB o BB anterior.
+
+## 4. CHoCH confirmando estructura
+- En 3m o 5m, romper estructura interna en dirección del bias.
+- Sin CHoCH no se entra — se espera la siguiente vela.
+
+## 5. Killzone activa
+- **NY-AM-KZ** (08:30–11:00 NY) → ideal.
+- **LDN-KZ** (02:00–05:00 NY) → válido si hay momentum.
+- Fuera de KZ → **no hay trade**.
+
+## Ejecución
+- Entrada en el FVG (50% del gap).
+- SL 1-2 pips por encima/debajo del high/low del sweep.
+- TP1 = R:2 (cierre 50% + BE).
+- TP2 = liquidez opuesta más cercana.
+`,
+  },
+  {
+    category: "trading",
+    title: "Checklist pre-trade",
+    tags: ["checklist", "pre-trade"],
+    content: `# Checklist pre-trade
+
+Antes de cada entrada, manual o validación de bot. **Si una sola falla, no hay trade.**
+
+- [ ] Estoy en sesión válida
+- [ ] Spread bajo
+- [ ] No hay noticia roja en 30 min
+- [ ] Liquidez clara identificada
+- [ ] Sweep confirmado
+- [ ] CHoCH o FVG confirmado
+- [ ] R:R mínimo 1:2
+- [ ] No estoy en tilt emocional
+
+> Si dudas, no entras. La mejor operación es la que no tomaste cuando no tenías que tomarla.
+`,
+  },
+];
+
 const SEED_VAULT = [
   {
     type: "QUOTE" as const,
@@ -258,6 +358,18 @@ async function main() {
     );
   } else {
     console.log(`[seed] vault ya existe (${vaultCount}) — skip`);
+  }
+
+  const noteCount = await prisma.note.count({ where: { userId: user.id } });
+  if (noteCount === 0) {
+    await prisma.note.createMany({
+      data: SEED_NOTES.map((n) => ({ ...n, userId: user.id })),
+    });
+    console.log(
+      `[seed] insertadas ${SEED_NOTES.length} notas para ${user.email}`,
+    );
+  } else {
+    console.log(`[seed] notas ya existen (${noteCount}) — skip`);
   }
 
   const tradeCount = await prisma.trade.count({ where: { userId: user.id } });
