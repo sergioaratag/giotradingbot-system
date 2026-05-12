@@ -11,6 +11,7 @@
 #include <Common.mqh>
 #include <Liquidity.mqh>
 #include <Sweep.mqh>
+#include <FVG.mqh>
 
 // Inputs configurables desde MT5 GUI
 input string Symbol1 = "EURUSD";
@@ -28,7 +29,8 @@ int OnInit()
 {
    Liquidity_Init();
    Sweep_Init();
-   Print("GioBot v0.11 inicializado. Modulos: Liquidity + Sweep.");
+   FVG_Init();
+   Print("GioBot v0.12 inicializado. Modulos: Liquidity + Sweep + FVG.");
    Print("Simbolos: ", Symbol1, ", ", Symbol2);
    return(INIT_SUCCEEDED);
 }
@@ -46,7 +48,7 @@ void OnDeinit(const int reason)
 //+------------------------------------------------------------------+
 void OnTick()
 {
-   // Actualizar liquidez + escanear sweeps al inicio de cada vela H1
+   // Liquidity + Sweep + FVG corren al inicio de cada vela H1
    datetime currentH1_S1 = iTime(Symbol1, PERIOD_H1, 0);
    if(currentH1_S1 != lastUpdateH1_S1)
    {
@@ -54,6 +56,7 @@ void OnTick()
       lastUpdateH1_S1 = currentH1_S1;
       LogLiquidity(Symbol1);
       ScanAndLogSweeps(Symbol1);
+      ScanAndLogFVGs(Symbol1);
    }
 
    datetime currentH1_S2 = iTime(Symbol2, PERIOD_H1, 0);
@@ -63,6 +66,7 @@ void OnTick()
       lastUpdateH1_S2 = currentH1_S2;
       LogLiquidity(Symbol2);
       ScanAndLogSweeps(Symbol2);
+      ScanAndLogFVGs(Symbol2);
    }
 }
 
@@ -83,6 +87,31 @@ void ScanAndLogSweeps(string symbol)
    ArrayResize(sweeps, 0);
    int countM15 = Sweep_Detect(symbol, SWEEP_TF_M15, sweeps);
    for(int i = 0; i < countM15; i++) Sweep_LogEvent(sweeps[i]);
+}
+
+//+------------------------------------------------------------------+
+//| Detecta FVGs nuevos + actualiza estados en H1 / M15 / M5         |
+//+------------------------------------------------------------------+
+void ScanAndLogFVGs(string symbol)
+{
+   FVGZone fvgs[];
+
+   // Deteccion de nuevos FVGs (cada call solo retorna los frescos no vistos)
+   int countH1 = FVG_Detect(symbol, FVG_TF_H1, fvgs);
+   for(int i = 0; i < countH1; i++) FVG_LogEvent(fvgs[i], "NEW");
+
+   ArrayResize(fvgs, 0);
+   int countM15 = FVG_Detect(symbol, FVG_TF_M15, fvgs);
+   for(int i = 0; i < countM15; i++) FVG_LogEvent(fvgs[i], "NEW");
+
+   ArrayResize(fvgs, 0);
+   int countM5 = FVG_Detect(symbol, FVG_TF_M5, fvgs);
+   for(int i = 0; i < countM5; i++) FVG_LogEvent(fvgs[i], "NEW");
+
+   // Update estados (transiciones a MITIG/INVAL se loggean dentro)
+   FVG_UpdateStates(symbol, FVG_TF_H1);
+   FVG_UpdateStates(symbol, FVG_TF_M15);
+   FVG_UpdateStates(symbol, FVG_TF_M5);
 }
 
 //+------------------------------------------------------------------+

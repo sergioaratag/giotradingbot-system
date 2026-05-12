@@ -52,14 +52,7 @@ datetime BuildNYDateTime(int year, int month, int day, int hour, int minute, int
    return StructToTime(dt);
 }
 
-// Tamano del pip para el simbolo (10 puntos en pares de 5 decimales)
-double GetPipSize(string symbol)
-{
-   int digits   = (int)SymbolInfoInteger(symbol, SYMBOL_DIGITS);
-   double point = SymbolInfoDouble(symbol, SYMBOL_POINT);
-   if(digits == 5 || digits == 3) return point * 10.0;
-   return point;
-}
+// GetPipSize() esta en Common.mqh (helper compartido entre modulos).
 
 //============================ HELPERS DE STORAGE ====================
 

@@ -55,6 +55,16 @@ struct LiquidityLevel
 // El servidor MT5 usa hora del broker. Necesitamos convertir a NY.
 // IMPORTANTE: el offset varia por DST. Usar TimeGMT() y aplicar offset NY (UTC-4 o UTC-5).
 
+// Tamano del pip para el simbolo (10 puntos en pares de 5 decimales).
+// Helper compartido por todos los modulos (Liquidity, Sweep, FVG, ...).
+double GetPipSize(string symbol)
+{
+   int digits   = (int)SymbolInfoInteger(symbol, SYMBOL_DIGITS);
+   double point = SymbolInfoDouble(symbol, SYMBOL_POINT);
+   if(digits == 5 || digits == 3) return point * 10.0;
+   return point;
+}
+
 // Deteccion de sweep
 enum ENUM_SWEEP_DIRECTION
 {
@@ -86,6 +96,48 @@ struct SweepEvent
 
    // Calidad del sweep (1-10)
    int                   quality;        // Score combinando varios factores
+};
+
+// FVG (Fair Value Gap)
+enum ENUM_FVG_TYPE
+{
+   FVG_BULLISH,    // Gap a favor de movimiento alcista
+   FVG_BEARISH     // Gap a favor de movimiento bajista
+};
+
+enum ENUM_FVG_STATE
+{
+   FVG_FRESH,      // Recien formado, intacto
+   FVG_MITIGATED,  // Precio entro al gap pero no lo invalido
+   FVG_INVALIDATED // Cerrado del lado opuesto -> ahora es IFVG (o expiro por edad)
+};
+
+enum ENUM_FVG_TIMEFRAME
+{
+   FVG_TF_H1,
+   FVG_TF_M15,
+   FVG_TF_M5,
+   FVG_TF_M3,
+   FVG_TF_M1
+};
+
+struct FVGZone
+{
+   datetime              formedAt;       // Tiempo de apertura de la vela 3 (cuando se completo)
+   ENUM_FVG_TYPE         type;           // Bullish/Bearish (original)
+   ENUM_FVG_STATE        state;          // Fresh/Mitigated/Invalidated
+   ENUM_FVG_TIMEFRAME    timeframe;
+   string                symbol;
+
+   double                top;            // Top del gap (precio mayor)
+   double                bottom;         // Bottom del gap (precio menor)
+   double                sizePips;       // Tamano del gap en pips
+
+   datetime              mitigatedAt;    // Cuando entro el precio al gap (0 si no)
+   datetime              invalidatedAt;  // Cuando se invalido (0 si no)
+
+   bool                  isIFVG;         // true si ya fue invalidado y actua inverso
+   int                   quality;        // 1-10
 };
 
 #endif // COMMON_MQH
