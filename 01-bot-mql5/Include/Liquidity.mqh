@@ -105,7 +105,18 @@ void RemoveOldSweptLevels()
 
 void AddLevel(LiquidityLevel &lev)
 {
+   // Evitar duplicados: si ya existe un nivel barrido del mismo simbolo/tipo/precio,
+   // no recrear una version "fresca". Permite que el sweep no se redispare cada hora.
+   double matchTol = GetPipSize(lev.symbol) * 0.5;
    int n = ArraySize(s_levels);
+   for(int i = 0; i < n; i++)
+   {
+      if(s_levels[i].symbol == lev.symbol &&
+         s_levels[i].type   == lev.type   &&
+         s_levels[i].isSwept &&
+         MathAbs(s_levels[i].price - lev.price) <= matchTol)
+         return;
+   }
    ArrayResize(s_levels, n + 1);
    s_levels[n] = lev;
 }
@@ -321,6 +332,25 @@ int Liquidity_GetActive(string symbol, LiquidityLevel &out[])
    for(int i = 0; i < n; i++)
    {
       if(s_levels[i].symbol == symbol && !s_levels[i].isSwept)
+      {
+         ArrayResize(out, count + 1);
+         out[count] = s_levels[i];
+         count++;
+      }
+   }
+   return count;
+}
+
+// Llena `out[]` con TODOS los niveles trackeados del simbolo (swept + activos).
+// Util para logging y verificacion visual.
+int Liquidity_GetAll(string symbol, LiquidityLevel &out[])
+{
+   ArrayResize(out, 0);
+   int n = ArraySize(s_levels);
+   int count = 0;
+   for(int i = 0; i < n; i++)
+   {
+      if(s_levels[i].symbol == symbol)
       {
          ArrayResize(out, count + 1);
          out[count] = s_levels[i];

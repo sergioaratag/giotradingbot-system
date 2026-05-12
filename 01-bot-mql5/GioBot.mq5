@@ -10,6 +10,7 @@
 
 #include <Common.mqh>
 #include <Liquidity.mqh>
+#include <Sweep.mqh>
 
 // Inputs configurables desde MT5 GUI
 input string Symbol1 = "EURUSD";
@@ -26,7 +27,8 @@ datetime lastUpdateH1_S2 = 0;
 int OnInit()
 {
    Liquidity_Init();
-   Print("GioBot v0.10 inicializado. Modulo: Liquidity only.");
+   Sweep_Init();
+   Print("GioBot v0.11 inicializado. Modulos: Liquidity + Sweep.");
    Print("Simbolos: ", Symbol1, ", ", Symbol2);
    return(INIT_SUCCEEDED);
 }
@@ -44,13 +46,14 @@ void OnDeinit(const int reason)
 //+------------------------------------------------------------------+
 void OnTick()
 {
-   // Actualizar liquidez al inicio de cada vela H1
+   // Actualizar liquidez + escanear sweeps al inicio de cada vela H1
    datetime currentH1_S1 = iTime(Symbol1, PERIOD_H1, 0);
    if(currentH1_S1 != lastUpdateH1_S1)
    {
       Liquidity_Update(Symbol1);
       lastUpdateH1_S1 = currentH1_S1;
       LogLiquidity(Symbol1);
+      ScanAndLogSweeps(Symbol1);
    }
 
    datetime currentH1_S2 = iTime(Symbol2, PERIOD_H1, 0);
@@ -59,7 +62,27 @@ void OnTick()
       Liquidity_Update(Symbol2);
       lastUpdateH1_S2 = currentH1_S2;
       LogLiquidity(Symbol2);
+      ScanAndLogSweeps(Symbol2);
    }
+}
+
+//+------------------------------------------------------------------+
+//| Escanea sweeps en H4 / H1 / M15 y los loggea                     |
+//+------------------------------------------------------------------+
+void ScanAndLogSweeps(string symbol)
+{
+   SweepEvent sweeps[];
+
+   int countH4 = Sweep_Detect(symbol, SWEEP_TF_H4, sweeps);
+   for(int i = 0; i < countH4; i++) Sweep_LogEvent(sweeps[i]);
+
+   ArrayResize(sweeps, 0);
+   int countH1 = Sweep_Detect(symbol, SWEEP_TF_H1, sweeps);
+   for(int i = 0; i < countH1; i++) Sweep_LogEvent(sweeps[i]);
+
+   ArrayResize(sweeps, 0);
+   int countM15 = Sweep_Detect(symbol, SWEEP_TF_M15, sweeps);
+   for(int i = 0; i < countM15; i++) Sweep_LogEvent(sweeps[i]);
 }
 
 //+------------------------------------------------------------------+
@@ -70,7 +93,7 @@ void LogLiquidity(string symbol)
    if(!EnableLogging) return;
 
    LiquidityLevel levels[];
-   int count = Liquidity_GetActive(symbol, levels);
+   int count = Liquidity_GetAll(symbol, levels);
 
    Print("===== Liquidity para ", symbol, " =====");
    Print("Total niveles activos: ", count);

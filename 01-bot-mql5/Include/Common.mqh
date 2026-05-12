@@ -55,4 +55,37 @@ struct LiquidityLevel
 // El servidor MT5 usa hora del broker. Necesitamos convertir a NY.
 // IMPORTANTE: el offset varia por DST. Usar TimeGMT() y aplicar offset NY (UTC-4 o UTC-5).
 
+// Deteccion de sweep
+enum ENUM_SWEEP_DIRECTION
+{
+   SWEEP_BULLISH,   // Barrio un low, posible LONG
+   SWEEP_BEARISH    // Barrio un high, posible SHORT
+};
+
+enum ENUM_SWEEP_TIMEFRAME
+{
+   SWEEP_TF_H4,
+   SWEEP_TF_H1,
+   SWEEP_TF_M15,
+   SWEEP_TF_M5
+};
+
+struct SweepEvent
+{
+   datetime              detectedAt;     // Cuando se detecto el sweep
+   datetime              candleTime;     // Tiempo de apertura de la vela del sweep
+   ENUM_SWEEP_DIRECTION  direction;      // Bullish/Bearish
+   ENUM_SWEEP_TIMEFRAME  timeframe;      // H4/H1/M15/M5
+   string                symbol;         // EURUSD, GBPUSD
+
+   // Datos del nivel barrido
+   LiquidityLevel        levelSwept;     // Copia del nivel que se barrio
+   double                wickPrice;      // Precio extremo de la mecha (high bearish / low bullish)
+   double                closePrice;     // Precio de cierre de la vela
+   double                pipsPerforated; // Cuantos pips perforo el nivel
+
+   // Calidad del sweep (1-10)
+   int                   quality;        // Score combinando varios factores
+};
+
 #endif // COMMON_MQH
