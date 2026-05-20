@@ -12,6 +12,7 @@
 #include <Liquidity.mqh>
 #include <Sweep.mqh>
 #include <FVG.mqh>
+#include <Structure.mqh>
 
 // Inputs configurables desde MT5 GUI
 input string Symbol1 = "EURUSD";
@@ -30,7 +31,8 @@ int OnInit()
    Liquidity_Init();
    Sweep_Init();
    FVG_Init();
-   Print("GioBot v0.12 inicializado. Modulos: Liquidity + Sweep + FVG.");
+   Structure_Init();
+   Print("GioBot v0.13 inicializado. Modulos: Liquidity + Sweep + FVG + Structure.");
    Print("Simbolos: ", Symbol1, ", ", Symbol2);
    return(INIT_SUCCEEDED);
 }
@@ -57,6 +59,7 @@ void OnTick()
       LogLiquidity(Symbol1);
       ScanAndLogSweeps(Symbol1);
       ScanAndLogFVGs(Symbol1);
+      ScanAndLogStructure(Symbol1);
    }
 
    datetime currentH1_S2 = iTime(Symbol2, PERIOD_H1, 0);
@@ -67,6 +70,7 @@ void OnTick()
       LogLiquidity(Symbol2);
       ScanAndLogSweeps(Symbol2);
       ScanAndLogFVGs(Symbol2);
+      ScanAndLogStructure(Symbol2);
    }
 }
 
@@ -112,6 +116,31 @@ void ScanAndLogFVGs(string symbol)
    FVG_UpdateStates(symbol, FVG_TF_H1);
    FVG_UpdateStates(symbol, FVG_TF_M15);
    FVG_UpdateStates(symbol, FVG_TF_M5);
+}
+
+//+------------------------------------------------------------------+
+//| Detecta CHoCH/BOS en H1 / M15 / M5 y loggea estructura actual    |
+//+------------------------------------------------------------------+
+void ScanAndLogStructure(string symbol)
+{
+   StructureEvent events[];
+
+   int countH1 = Structure_DetectEvents(symbol, STRUCT_TF_H1, events);
+   for(int i = 0; i < countH1; i++) Structure_LogEvent(events[i]);
+
+   ArrayResize(events, 0);
+   int countM15 = Structure_DetectEvents(symbol, STRUCT_TF_M15, events);
+   for(int i = 0; i < countM15; i++) Structure_LogEvent(events[i]);
+
+   ArrayResize(events, 0);
+   int countM5 = Structure_DetectEvents(symbol, STRUCT_TF_M5, events);
+   for(int i = 0; i < countM5; i++) Structure_LogEvent(events[i]);
+
+   // Resumen de estructura actual por TF
+   string s1  = "H1: "  + EnumToString(Structure_GetCurrent(symbol, STRUCT_TF_H1));
+   string s15 = "M15: " + EnumToString(Structure_GetCurrent(symbol, STRUCT_TF_M15));
+   string s5  = "M5: "  + EnumToString(Structure_GetCurrent(symbol, STRUCT_TF_M5));
+   Print("[STRUCT] ", symbol, " | ", s1, " | ", s15, " | ", s5);
 }
 
 //+------------------------------------------------------------------+

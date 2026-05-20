@@ -140,4 +140,58 @@ struct FVGZone
    int                   quality;        // 1-10
 };
 
+// Estructura de mercado: swings y eventos (CHoCH / BOS)
+enum ENUM_SWING_TYPE
+{
+   SWING_HH,    // Higher High
+   SWING_HL,    // Higher Low
+   SWING_LH,    // Lower High
+   SWING_LL     // Lower Low
+};
+
+enum ENUM_STRUCTURE
+{
+   STRUCT_BULLISH,    // HH/HL dominante
+   STRUCT_BEARISH,    // LH/LL dominante
+   STRUCT_NEUTRAL     // Sin estructura clara
+};
+
+enum ENUM_STRUCT_EVENT
+{
+   EVT_CHOCH_BULLISH,  // CHoCH alcista (bajista -> alcista)
+   EVT_CHOCH_BEARISH,  // CHoCH bajista (alcista -> bajista)
+   EVT_BOS_BULLISH,    // BOS alcista (continuacion)
+   EVT_BOS_BEARISH,    // BOS bajista (continuacion)
+   EVT_NONE
+};
+
+enum ENUM_STRUCT_TIMEFRAME
+{
+   STRUCT_TF_H4,
+   STRUCT_TF_H1,
+   STRUCT_TF_M15,
+   STRUCT_TF_M5,
+   STRUCT_TF_M3
+};
+
+struct SwingPoint
+{
+   datetime         time;
+   double           price;
+   ENUM_SWING_TYPE  type;
+   int              barShift;        // Cuantas barras atras desde la vela 0
+};
+
+struct StructureEvent
+{
+   datetime              detectedAt;
+   datetime              candleTime;
+   ENUM_STRUCT_EVENT     eventType;
+   ENUM_STRUCT_TIMEFRAME timeframe;
+   string                symbol;
+   double                brokenLevel;    // Precio del HL/LH/HH/LL que se rompio
+   double                closePrice;     // Precio de cierre que confirmo la ruptura
+   int                   quality;        // 1-10
+};
+
 #endif // COMMON_MQH
