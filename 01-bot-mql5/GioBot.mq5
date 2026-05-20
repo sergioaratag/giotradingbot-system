@@ -13,6 +13,7 @@
 #include <Sweep.mqh>
 #include <FVG.mqh>
 #include <Structure.mqh>
+#include <Bias.mqh>
 
 // Inputs configurables desde MT5 GUI
 input string Symbol1 = "EURUSD";
@@ -32,7 +33,8 @@ int OnInit()
    Sweep_Init();
    FVG_Init();
    Structure_Init();
-   Print("GioBot v0.13 inicializado. Modulos: Liquidity + Sweep + FVG + Structure.");
+   Bias_Init();
+   Print("GioBot v0.14 inicializado. Modulos: Liquidity + Sweep + FVG + Structure + Bias.");
    Print("Simbolos: ", Symbol1, ", ", Symbol2);
    return(INIT_SUCCEEDED);
 }
@@ -60,6 +62,8 @@ void OnTick()
       ScanAndLogSweeps(Symbol1);
       ScanAndLogFVGs(Symbol1);
       ScanAndLogStructure(Symbol1);
+      BiasResult biasS1 = Bias_Calculate(Symbol1);
+      Bias_LogResult(biasS1);
    }
 
    datetime currentH1_S2 = iTime(Symbol2, PERIOD_H1, 0);
@@ -71,6 +75,8 @@ void OnTick()
       ScanAndLogSweeps(Symbol2);
       ScanAndLogFVGs(Symbol2);
       ScanAndLogStructure(Symbol2);
+      BiasResult biasS2 = Bias_Calculate(Symbol2);
+      Bias_LogResult(biasS2);
    }
 }
 

@@ -167,6 +167,7 @@ enum ENUM_STRUCT_EVENT
 
 enum ENUM_STRUCT_TIMEFRAME
 {
+   STRUCT_TF_D1,
    STRUCT_TF_H4,
    STRUCT_TF_H1,
    STRUCT_TF_M15,
@@ -192,6 +193,32 @@ struct StructureEvent
    double                brokenLevel;    // Precio del HL/LH/HH/LL que se rompio
    double                closePrice;     // Precio de cierre que confirmo la ruptura
    int                   quality;        // 1-10
+};
+
+// Bias HTF
+enum ENUM_BIAS
+{
+   BIAS_BULLISH,
+   BIAS_BEARISH,
+   BIAS_NEUTRAL
+};
+
+enum ENUM_BIAS_CONFIDENCE
+{
+   BIAS_CONF_NONE,     // 0 - conflicto entre H4/D1
+   BIAS_CONF_LOW,      // 1 - ambos neutrales
+   BIAS_CONF_MEDIUM,   // 2 - uno define, otro neutral
+   BIAS_CONF_HIGH      // 3 - ambos coinciden
+};
+
+struct BiasResult
+{
+   ENUM_BIAS              bias;
+   ENUM_BIAS_CONFIDENCE   confidence;
+   ENUM_STRUCTURE         structureH4;
+   ENUM_STRUCTURE         structureD1;
+   datetime               calculatedAt;
+   string                 symbol;
 };
 
 #endif // COMMON_MQH

@@ -28,6 +28,7 @@ ENUM_TIMEFRAMES StructMqlTimeframe(ENUM_STRUCT_TIMEFRAME tf)
 {
    switch(tf)
    {
+      case STRUCT_TF_D1:  return PERIOD_D1;
       case STRUCT_TF_H4:  return PERIOD_H4;
       case STRUCT_TF_H1:  return PERIOD_H1;
       case STRUCT_TF_M15: return PERIOD_M15;
@@ -41,6 +42,7 @@ string StructTimeframeToString(ENUM_STRUCT_TIMEFRAME tf)
 {
    switch(tf)
    {
+      case STRUCT_TF_D1:  return "D1";
       case STRUCT_TF_H4:  return "H4";
       case STRUCT_TF_H1:  return "H1";
       case STRUCT_TF_M15: return "M15";
