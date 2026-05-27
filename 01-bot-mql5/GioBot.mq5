@@ -1,11 +1,11 @@
 //+------------------------------------------------------------------+
 //|                                                       GioBot.mq5 |
 //|                                  GioTradingBot ICT - v0.1        |
-//|                                  Modulo 1: Liquidity only        |
+//|                                  Modulo 6: Setup detection       |
 //+------------------------------------------------------------------+
 #property copyright "Sergio Arata"
 #property link      "https://giotradingbot-system.vercel.app"
-#property version   "0.10"
+#property version   "0.15"
 #property strict
 
 #include <Common.mqh>
@@ -14,15 +14,19 @@
 #include <FVG.mqh>
 #include <Structure.mqh>
 #include <Bias.mqh>
+#include <Setup.mqh>
 
 // Inputs configurables desde MT5 GUI
-input string Symbol1 = "EURUSD";
-input string Symbol2 = "GBPUSD";
-input bool   EnableLogging = true;
+input string Symbol1        = "EURUSD";
+input string Symbol2        = "GBPUSD";
+input bool   EnableLogging  = true;   // Resumen de liquidez en modo verbose
+input bool   VerboseLogging = false;  // true: logs por modulo. false: solo setups.
 
-// Last update tracker (por simbolo)
+// Last update trackers (por simbolo)
 datetime lastUpdateH1_S1 = 0;
 datetime lastUpdateH1_S2 = 0;
+datetime lastUpdateM1_S1 = 0;
+datetime lastUpdateM1_S2 = 0;
 
 //+------------------------------------------------------------------+
 //| Expert initialization                                            |
@@ -34,8 +38,12 @@ int OnInit()
    FVG_Init();
    Structure_Init();
    Bias_Init();
-   Print("GioBot v0.14 inicializado. Modulos: Liquidity + Sweep + FVG + Structure + Bias.");
-   Print("Simbolos: ", Symbol1, ", ", Symbol2);
+   Setup_Init();
+   Setup_SetVerbose(VerboseLogging);
+
+   Print("GioBot v0.15 inicializado. Modulos: Liquidity + Sweep + FVG + Structure + Bias + Setup.");
+   Print("Modulo Setup cargado. El bot ahora detecta setups completos (sin ejecutar).");
+   Print("Simbolos: ", Symbol1, ", ", Symbol2, " | Verbose: ", (VerboseLogging ? "ON" : "OFF"));
    return(INIT_SUCCEEDED);
 }
 
@@ -49,108 +57,73 @@ void OnDeinit(const int reason)
 
 //+------------------------------------------------------------------+
 //| Expert tick function                                             |
+//|                                                                  |
+//| - Liquidity se refresca al cierre de cada vela H1 (alimenta el   |
+//|   detector de sweeps).                                           |
+//| - Setup_Process corre en cada vela M1 para captar confirmaciones |
+//|   LTF rapidas (M5/M3/M1). Es el UNICO consumidor de Sweep_Detect |
+//|   y Structure_DetectEvents (que consumen/dedupean internamente), |
+//|   por eso NO se llaman scanners individuales en paralelo.        |
 //+------------------------------------------------------------------+
 void OnTick()
 {
-   // Liquidity + Sweep + FVG corren al inicio de cada vela H1
+   // --- Refresco de liquidez en cierre H1 ---
    datetime currentH1_S1 = iTime(Symbol1, PERIOD_H1, 0);
    if(currentH1_S1 != lastUpdateH1_S1)
    {
-      Liquidity_Update(Symbol1);
       lastUpdateH1_S1 = currentH1_S1;
-      LogLiquidity(Symbol1);
-      ScanAndLogSweeps(Symbol1);
-      ScanAndLogFVGs(Symbol1);
-      ScanAndLogStructure(Symbol1);
-      BiasResult biasS1 = Bias_Calculate(Symbol1);
-      Bias_LogResult(biasS1);
+      Liquidity_Update(Symbol1);
+      if(VerboseLogging) LogVerbose(Symbol1);
    }
 
    datetime currentH1_S2 = iTime(Symbol2, PERIOD_H1, 0);
    if(currentH1_S2 != lastUpdateH1_S2)
    {
-      Liquidity_Update(Symbol2);
       lastUpdateH1_S2 = currentH1_S2;
-      LogLiquidity(Symbol2);
-      ScanAndLogSweeps(Symbol2);
-      ScanAndLogFVGs(Symbol2);
-      ScanAndLogStructure(Symbol2);
-      BiasResult biasS2 = Bias_Calculate(Symbol2);
-      Bias_LogResult(biasS2);
+      Liquidity_Update(Symbol2);
+      if(VerboseLogging) LogVerbose(Symbol2);
+   }
+
+   // --- Procesamiento de setups en cierre M1 (la cadena completa) ---
+   datetime currentM1_S1 = iTime(Symbol1, PERIOD_M1, 0);
+   if(currentM1_S1 != lastUpdateM1_S1)
+   {
+      lastUpdateM1_S1 = currentM1_S1;
+      Setup_Process(Symbol1);
+   }
+
+   datetime currentM1_S2 = iTime(Symbol2, PERIOD_M1, 0);
+   if(currentM1_S2 != lastUpdateM1_S2)
+   {
+      lastUpdateM1_S2 = currentM1_S2;
+      Setup_Process(Symbol2);
    }
 }
 
 //+------------------------------------------------------------------+
-//| Escanea sweeps en H4 / H1 / M15 y los loggea                     |
+//| Resumen verboso READ-ONLY (no consume eventos de deteccion).     |
+//| El detalle de sweeps/FVG/CHoCH detectados sale de Setup_Process  |
+//| via lineas [SETUP] y [SETUP v]. Aqui solo contexto de estado.    |
 //+------------------------------------------------------------------+
-void ScanAndLogSweeps(string symbol)
+void LogVerbose(string symbol)
 {
-   SweepEvent sweeps[];
+   LogLiquidity(symbol);
 
-   int countH4 = Sweep_Detect(symbol, SWEEP_TF_H4, sweeps);
-   for(int i = 0; i < countH4; i++) Sweep_LogEvent(sweeps[i]);
+   // Estructura actual por TF (Structure_GetCurrent recomputa, no consume)
+   Print("[STRUCT] ", symbol,
+         " | D1: ",  EnumToString(Structure_GetCurrent(symbol, STRUCT_TF_D1)),
+         " | H4: ",  EnumToString(Structure_GetCurrent(symbol, STRUCT_TF_H4)),
+         " | H1: ",  EnumToString(Structure_GetCurrent(symbol, STRUCT_TF_H1)),
+         " | M15: ", EnumToString(Structure_GetCurrent(symbol, STRUCT_TF_M15)),
+         " | M5: ",  EnumToString(Structure_GetCurrent(symbol, STRUCT_TF_M5)));
 
-   ArrayResize(sweeps, 0);
-   int countH1 = Sweep_Detect(symbol, SWEEP_TF_H1, sweeps);
-   for(int i = 0; i < countH1; i++) Sweep_LogEvent(sweeps[i]);
-
-   ArrayResize(sweeps, 0);
-   int countM15 = Sweep_Detect(symbol, SWEEP_TF_M15, sweeps);
-   for(int i = 0; i < countM15; i++) Sweep_LogEvent(sweeps[i]);
+   // Bias HTF
+   BiasResult b = Bias_Calculate(symbol);
+   Bias_LogResult(b);
 }
 
 //+------------------------------------------------------------------+
-//| Detecta FVGs nuevos + actualiza estados en H1 / M15 / M5         |
-//+------------------------------------------------------------------+
-void ScanAndLogFVGs(string symbol)
-{
-   FVGZone fvgs[];
-
-   // Deteccion de nuevos FVGs (cada call solo retorna los frescos no vistos)
-   int countH1 = FVG_Detect(symbol, FVG_TF_H1, fvgs);
-   for(int i = 0; i < countH1; i++) FVG_LogEvent(fvgs[i], "NEW");
-
-   ArrayResize(fvgs, 0);
-   int countM15 = FVG_Detect(symbol, FVG_TF_M15, fvgs);
-   for(int i = 0; i < countM15; i++) FVG_LogEvent(fvgs[i], "NEW");
-
-   ArrayResize(fvgs, 0);
-   int countM5 = FVG_Detect(symbol, FVG_TF_M5, fvgs);
-   for(int i = 0; i < countM5; i++) FVG_LogEvent(fvgs[i], "NEW");
-
-   // Update estados (transiciones a MITIG/INVAL se loggean dentro)
-   FVG_UpdateStates(symbol, FVG_TF_H1);
-   FVG_UpdateStates(symbol, FVG_TF_M15);
-   FVG_UpdateStates(symbol, FVG_TF_M5);
-}
-
-//+------------------------------------------------------------------+
-//| Detecta CHoCH/BOS en H1 / M15 / M5 y loggea estructura actual    |
-//+------------------------------------------------------------------+
-void ScanAndLogStructure(string symbol)
-{
-   StructureEvent events[];
-
-   int countH1 = Structure_DetectEvents(symbol, STRUCT_TF_H1, events);
-   for(int i = 0; i < countH1; i++) Structure_LogEvent(events[i]);
-
-   ArrayResize(events, 0);
-   int countM15 = Structure_DetectEvents(symbol, STRUCT_TF_M15, events);
-   for(int i = 0; i < countM15; i++) Structure_LogEvent(events[i]);
-
-   ArrayResize(events, 0);
-   int countM5 = Structure_DetectEvents(symbol, STRUCT_TF_M5, events);
-   for(int i = 0; i < countM5; i++) Structure_LogEvent(events[i]);
-
-   // Resumen de estructura actual por TF
-   string s1  = "H1: "  + EnumToString(Structure_GetCurrent(symbol, STRUCT_TF_H1));
-   string s15 = "M15: " + EnumToString(Structure_GetCurrent(symbol, STRUCT_TF_M15));
-   string s5  = "M5: "  + EnumToString(Structure_GetCurrent(symbol, STRUCT_TF_M5));
-   Print("[STRUCT] ", symbol, " | ", s1, " | ", s15, " | ", s5);
-}
-
-//+------------------------------------------------------------------+
-//| Loggea todos los niveles activos                                 |
+//| Loggea todos los niveles activos de liquidez                     |
 //+------------------------------------------------------------------+
 void LogLiquidity(string symbol)
 {

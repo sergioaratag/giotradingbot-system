@@ -172,7 +172,8 @@ enum ENUM_STRUCT_TIMEFRAME
    STRUCT_TF_H1,
    STRUCT_TF_M15,
    STRUCT_TF_M5,
-   STRUCT_TF_M3
+   STRUCT_TF_M3,
+   STRUCT_TF_M1
 };
 
 struct SwingPoint
@@ -219,6 +220,48 @@ struct BiasResult
    ENUM_STRUCTURE         structureD1;
    datetime               calculatedAt;
    string                 symbol;
+};
+
+// Setup completo (Modulo 6): la cadena ICT orquestada.
+enum ENUM_SETUP_QUALITY
+{
+   SETUP_QUALITY_HIGH,     // Sweep + CHoCH + FVG
+   SETUP_QUALITY_MEDIUM,   // Sweep + (CHoCH o FVG)
+   SETUP_QUALITY_LOW       // Sweep + senal debil
+};
+
+enum ENUM_SETUP_STATE
+{
+   SETUP_WAITING,       // Sweep detectado, esperando confirmacion LTF
+   SETUP_CONFIRMED,     // FVG + CHoCH confirmados, setup valido
+   SETUP_EXPIRED,       // Pasaron 45 min sin confirmacion
+   SETUP_INVALIDATED    // Algo invalido el setup (reservado para Execution)
+};
+
+struct TradeSetup
+{
+   datetime              detectedAt;       // Cuando se detecto el sweep inicial
+   datetime              confirmedAt;      // Cuando se confirmo (0 si waiting)
+   datetime              expiresAt;        // detectedAt + 45 min
+   ENUM_SETUP_STATE      state;
+   ENUM_SETUP_QUALITY    quality;
+   ENUM_DIRECTION        direction;        // DIR_BULLISH (long) o DIR_BEARISH (short)
+   string                symbol;
+
+   // Componentes del setup
+   SweepEvent            sweep;            // El sweep que disparo
+   bool                  hasFVG;
+   FVGZone               fvg;              // El FVG de confirmacion (si hay)
+   bool                  hasCHoCH;
+   StructureEvent        choch;            // El CHoCH de confirmacion (si hay)
+   BiasResult            bias;             // Contexto HTF
+   bool                  biasAligned;      // true si setup va a favor del bias
+
+   // Zona de entrada (calculada del FVG)
+   double                entryZoneTop;
+   double                entryZoneBottom;
+
+   int                   qualityScore;     // 1-10 combinado
 };
 
 #endif // COMMON_MQH

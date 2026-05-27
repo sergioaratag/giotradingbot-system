@@ -34,6 +34,7 @@ ENUM_TIMEFRAMES StructMqlTimeframe(ENUM_STRUCT_TIMEFRAME tf)
       case STRUCT_TF_M15: return PERIOD_M15;
       case STRUCT_TF_M5:  return PERIOD_M5;
       case STRUCT_TF_M3:  return PERIOD_M3;
+      case STRUCT_TF_M1:  return PERIOD_M1;
    }
    return PERIOD_H1;
 }
@@ -48,6 +49,7 @@ string StructTimeframeToString(ENUM_STRUCT_TIMEFRAME tf)
       case STRUCT_TF_M15: return "M15";
       case STRUCT_TF_M5:  return "M5";
       case STRUCT_TF_M3:  return "M3";
+      case STRUCT_TF_M1:  return "M1";
    }
    return "?";
 }
