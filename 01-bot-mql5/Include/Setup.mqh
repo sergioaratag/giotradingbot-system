@@ -5,8 +5,8 @@
 //| loggea "HABRIA OPERADO AQUI".                                    |
 //|                                                                  |
 //| Cadena:                                                          |
-//|   1. Sweep (H4/H1/M15) barre liquidez -> ventana de 45 min       |
-//|   2. Dentro de la ventana, en LTF (M5/M3/M1):                    |
+//|   1. Sweep (H4/H1/M15) barre liquidez dentro de sesion Londres/NY|
+//|   2. Mientras la sesion siga abierta para ENTRAR, en LTF(M5/M3/M1)|
 //|        FVG en la direccion esperada Y/O CHoCH en la direccion    |
 //|   3. Direcciones deben coincidir con el sweep                    |
 //|   4. Bias HTF pondera (a favor / en contra)                      |
@@ -29,9 +29,21 @@
 #include <Bias.mqh>
 
 //============================ PARAMETROS ============================
-#define SETUP_WINDOW_MINUTES 45     // Ventana tras el sweep para confirmar
-#define SETUP_MAX_ACTIVE     10     // Maximo de setups WAITING en seguimiento
+#define SETUP_MAX_ACTIVE         10    // Maximo de setups WAITING en seguimiento
 #define SETUP_KEEP_TERMINAL_SECS 3600  // Housekeeping: retener terminales 1h
+
+// Ventanas de ENTRADA por sesion (hora NY, minutos desde 00:00).
+// El bot solo ABRE posiciones en estas ventanas; puede entrar hasta 15 min
+// antes del cierre de cada sesion (limite duro).
+//   Londres: 02:00 (120) -> cierre 07:00; limite de entrada 06:45 (405)
+//   NY:      07:00 (420) -> cierre 12:30; limite de entrada 12:15 (735)
+// NOTA: posiciones YA ABIERTAS no se cierran al terminar la sesion; su gestion
+// fuera de horario (BE, parciales, SL/TP) es responsabilidad del Modulo 9.
+// Este modulo solo gobierna ENTRADAS.
+#define SESS_LONDON_START_MIN 120   // 02:00 NY
+#define SESS_LONDON_LIMIT_MIN 405   // 06:45 NY (15 min antes del cierre 07:00)
+#define SESS_NY_START_MIN     420   // 07:00 NY
+#define SESS_NY_LIMIT_MIN     735   // 12:15 NY (15 min antes del cierre 12:30)
 
 //============================ STORAGE ===============================
 // Memoria del bot: setups en seguimiento a lo largo del tiempo.
@@ -42,6 +54,44 @@ TradeSetup s_setups[];
 bool g_setupVerbose = false;
 
 void Setup_SetVerbose(bool v) { g_setupVerbose = v; }
+
+//============================ SESIONES DE ENTRADA ===================
+// Reutiliza la conversion a hora NY de Liquidity.mqh (GMTToNY), que ya
+// encapsula el offset NY/DST. No duplicamos esa logica aqui.
+
+// Sesion de entrada activa para un datetime NY dado. SESSION_NONE si esta
+// fuera de las ventanas de entrada (incluye fin de semana y post-limite).
+ENUM_SESSION GetCurrentEntrySession(datetime nowNY)
+{
+   MqlDateTime dt;
+   TimeToStruct(nowNY, dt);
+
+   // Fin de semana: sin entradas (0 = domingo, 6 = sabado).
+   if(dt.day_of_week == 0 || dt.day_of_week == 6) return SESSION_NONE;
+
+   int mins = dt.hour * 60 + dt.min;
+   if(mins >= SESS_LONDON_START_MIN && mins <= SESS_LONDON_LIMIT_MIN) return SESSION_LONDON;
+   if(mins >= SESS_NY_START_MIN     && mins <= SESS_NY_LIMIT_MIN)     return SESSION_NY;
+   // El viernes despues de 12:15 NY queda cubierto: mins > 735 -> SESSION_NONE.
+   return SESSION_NONE;
+}
+
+bool IsWithinEntryWindow(datetime nowNY)
+{
+   return GetCurrentEntrySession(nowNY) != SESSION_NONE;
+}
+
+string SessionToString(ENUM_SESSION s)
+{
+   switch(s)
+   {
+      case SESSION_LONDON: return "LONDRES";
+      case SESSION_NY:     return "NY";
+      case SESSION_ASIA:   return "ASIA";
+      case SESSION_NONE:   return "NONE";
+   }
+   return "?";
+}
 
 //============================ HELPERS PRIVADOS ======================
 
@@ -150,7 +200,7 @@ void Setup_LogSetup(TradeSetup &setup, string action)
       Print("[SETUP] ", action, " | ", setup.symbol, " ", dirStr,
             " | Sweep: ", EnumToString(setup.sweep.levelSwept.type),
             " (", SweepTfStr(setup.sweep.timeframe), ")",
-            " | Ventana abierta 45min");
+            " | Sesion: ", SessionToString(setup.entrySession));
    }
    else if(action == "CONFIRMED")
    {
@@ -158,6 +208,7 @@ void Setup_LogSetup(TradeSetup &setup, string action)
       Print("====================================");
       Print("[SETUP CONFIRMADO] ", setup.symbol, " ", dirStr, " | Calidad: ", qualStr,
             " (score ", setup.qualityScore, "/10)");
+      Print("  Sesion: ", SessionToString(setup.entrySession));
       Print("  Sweep: ", EnumToString(setup.sweep.levelSwept.type),
             " (", SweepTfStr(setup.sweep.timeframe), ")");
       Print("  FVG: ", (setup.hasFVG ? "SI" : "NO"),
@@ -174,7 +225,7 @@ void Setup_LogSetup(TradeSetup &setup, string action)
    else if(action == "EXPIRED")
    {
       Print("[SETUP] EXPIRED | ", setup.symbol, " ", dirStr,
-            " | Sin confirmacion en 45min, descartado");
+            " | Fuera de ventana de entrada de sesion");
    }
 }
 
@@ -183,9 +234,13 @@ void Setup_LogSetup(TradeSetup &setup, string action)
 // captar confirmaciones rapidas.
 void Setup_Process(string symbol)
 {
-   datetime now = TimeCurrent();
+   datetime now           = TimeCurrent();
+   datetime nowNY         = GMTToNY(TimeGMT());          // reutiliza offset NY/DST de Liquidity
+   ENUM_SESSION nowSession = GetCurrentEntrySession(nowNY);
 
    //--- FASE 1: detectar nuevos sweeps -> crear setups WAITING -------
+   // Solo creamos setup si el sweep ocurre dentro de una sesion de entrada
+   // (Londres/NY y antes del limite). Fuera de horario: se ignora.
    ENUM_SWEEP_TIMEFRAME sweepTFs[3];
    sweepTFs[0] = SWEEP_TF_H4;
    sweepTFs[1] = SWEEP_TF_H1;
@@ -198,6 +253,15 @@ void Setup_Process(string symbol)
       for(int i = 0; i < ns; i++)
       {
          if(SetupForSweepExists(symbol, sweeps[i])) continue;
+
+         // Sweep fuera de sesion de entrada -> no se opera, no se crea setup.
+         if(nowSession == SESSION_NONE)
+         {
+            if(g_setupVerbose)
+               Print("[SETUP v] ", symbol, " | sweep fuera de ventana de entrada, ignorado");
+            continue;
+         }
+
          if(CountWaiting() >= SETUP_MAX_ACTIVE)
          {
             if(g_setupVerbose)
@@ -210,7 +274,7 @@ void Setup_Process(string symbol)
          setup.symbol          = symbol;
          setup.detectedAt      = sweeps[i].detectedAt;
          setup.confirmedAt     = 0;
-         setup.expiresAt       = sweeps[i].detectedAt + SETUP_WINDOW_MINUTES * 60;
+         setup.entrySession    = nowSession;
          setup.state           = SETUP_WAITING;
          setup.quality         = SETUP_QUALITY_LOW;
          setup.direction       = (sweeps[i].direction == SWEEP_BEARISH ? DIR_BEARISH : DIR_BULLISH);
@@ -274,8 +338,13 @@ void Setup_Process(string symbol)
       if(s_setups[i].symbol != symbol)         continue;
       if(s_setups[i].state  != SETUP_WAITING)  continue;
 
-      // 3a) Expiracion por ventana de 45 min (timestamp real, no velas)
-      if(now > s_setups[i].expiresAt)
+      // 3a) Expiracion por horario de sesion. Ya no se puede ENTRAR si:
+      //   - paso el limite de entrada (06:45 Londres / 12:15 NY), o
+      //   - la sesion actual cambio respecto a la del sweep (sweep de la
+      //     sesion anterior).
+      // Ambos casos se reducen a: la sesion actual != la sesion del sweep.
+      // NOTA: posiciones ya abiertas NO se cierran aqui; eso es Modulo 9.
+      if(nowSession != s_setups[i].entrySession)
       {
          s_setups[i].state = SETUP_EXPIRED;
          Setup_LogSetup(s_setups[i], "EXPIRED");
@@ -360,7 +429,7 @@ void Setup_Process(string symbol)
    {
       bool drop = false;
       if(s_setups[i].state == SETUP_EXPIRED || s_setups[i].state == SETUP_INVALIDATED)
-         drop = (now - s_setups[i].expiresAt) > SETUP_KEEP_TERMINAL_SECS;
+         drop = (now - s_setups[i].detectedAt) > SETUP_KEEP_TERMINAL_SECS;
       else if(s_setups[i].state == SETUP_CONFIRMED)
          drop = (now - s_setups[i].confirmedAt) > SETUP_KEEP_TERMINAL_SECS;
 

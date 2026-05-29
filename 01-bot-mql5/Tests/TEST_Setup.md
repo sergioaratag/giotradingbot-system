@@ -19,17 +19,20 @@ Inputs nuevos:
 
 ## Qué debería verse en logs
 
-**Cuando se detecta un sweep** (abre la ventana de 45 min):
+**Cuando se detecta un sweep** (dentro de una sesión de entrada Londres/NY):
 
 ```
-[SETUP] SWEEP_DETECTED | EURUSD SHORT | Sweep: LIQ_LONDON_H (H1) | Ventana abierta 45min
+[SETUP] SWEEP_DETECTED | EURUSD SHORT | Sweep: LIQ_LONDON_H (H1) | Sesion: LONDRES
 ```
 
-**Cuando se confirma** (al menos FVG o CHoCH en la dirección, después del sweep):
+> Si el sweep ocurre fuera de horario (antes de 02:00 NY, entre 06:45–07:00, después de 12:15, o fin de semana) **no se crea setup**. Con `VerboseLogging=true` se ve `[SETUP v] ... sweep fuera de ventana de entrada, ignorado`.
+
+**Cuando se confirma** (al menos FVG o CHoCH en la dirección, después del sweep, y aún dentro de la ventana de entrada de la sesión):
 
 ```
 ====================================
 [SETUP CONFIRMADO] EURUSD SHORT | Calidad: HIGH (score 9/10)
+  Sesion: LONDRES
   Sweep: LIQ_LONDON_H (H1)
   FVG: SI @ 1.08445-1.08478
   CHoCH: SI
@@ -45,6 +48,7 @@ Inputs nuevos:
 ```
 ====================================
 [SETUP CONFIRMADO] GBPUSD LONG | Calidad: MEDIUM (score 6/10)
+  Sesion: NY
   Sweep: LIQ_PDL (M15)
   FVG: NO
   CHoCH: SI
@@ -53,24 +57,42 @@ Inputs nuevos:
 ====================================
 ```
 
-**Cuando expira sin confirmación:**
+**Cuando expira por horario** (pasó el límite de entrada, o la confirmación llegó en otra sesión):
 
 ```
-[SETUP] EXPIRED | GBPUSD LONG | Sin confirmacion en 45min, descartado
+[SETUP] EXPIRED | GBPUSD LONG | Fuera de ventana de entrada de sesion
 ```
+
+## Ventana de entrada por sesión (regla corregida)
+
+El bot **NO** usa una ventana fija de minutos. Usa los horarios de sesión (hora NY) como límite de entrada. Solo ABRE posiciones en:
+
+| Sesión  | Apertura | Cierre  | Límite de entrada (15 min antes) |
+|---------|----------|---------|----------------------------------|
+| Londres | 02:00 NY | 07:00   | **06:45 NY**                     |
+| NY      | 07:00 NY | 12:30   | **12:15 NY**                     |
+
+- Sweep fuera de estas ventanas → **no se crea setup**.
+- Confirmación después del límite de entrada → **EXPIRED** (no opera).
+- Confirmación en una sesión distinta a la del sweep → **EXPIRED**.
+- Fin de semana (sábado/domingo) → sin entradas. Viernes después de 12:15 NY → sin entradas (mismo límite NY).
+- **Importante**: este límite solo afecta ENTRADAS. Las posiciones **ya abiertas no se cierran** al terminar la sesión — su gestión post-horario (BE, parciales, SL/TP) es del Módulo 9.
 
 ## Validaciones en TradingView
 
 1. **Encontrar un setup histórico completo** que cumpla la estrategia:
-   - Identificar un sweep claro de liquidez en H4/H1/M15.
-   - Verificar que dentro de 45 min apareció FVG y/o CHoCH en M5/M3/M1.
-   - Anotar dirección, niveles y hora.
-2. **Comparar con los logs del bot** en ese mismo momento (hora del servidor MT5).
+   - Identificar un sweep claro de liquidez en H4/H1/M15, dentro de horario Londres/NY.
+   - Verificar que la confirmación (FVG y/o CHoCH en M5/M3/M1) llegó mientras la sesión seguía abierta para entrar (antes del límite).
+   - Anotar dirección, niveles, sesión y hora NY.
+2. **Comparar con los logs del bot** en ese mismo momento (los logs usan hora del servidor MT5; el bot la convierte a NY internamente vía `GMTToNY`).
 3. **Validar el emparejamiento de dirección** (crítico):
    - Sweep BEARISH (barrió un high) → solo debe generar setups **SHORT**, y solo casa con FVG bearish + CHoCH bearish.
    - Sweep BULLISH (barrió un low) → solo setups **LONG**.
    - Un sweep bearish con FVG bullish → NO debe confirmar.
-4. **Validar la ventana de 45 min**: un sweep sin confirmación LTF dentro de la ventana debe loggear `EXPIRED`. Es tiempo real (timestamp), no conteo de velas.
+4. **Validar el límite de entrada de sesión** (caso clave):
+   - Sweep a las **12:10 NY** (dentro de NY) con confirmación a las **12:20 NY** (pasó el límite 12:15) → debe loggear **EXPIRED** (`Fuera de ventana de entrada de sesion`), NO confirmar.
+   - Sweep a las 12:10 NY con confirmación a las 12:14 NY → debe **CONFIRMAR** (aún dentro del límite).
+   - Sweep en Londres (ej. 05:00) cuya confirmación recién llega en NY (ej. 08:00) → **EXPIRED** (cambió de sesión).
 5. **Validar "después del sweep"**: un FVG/CHoCH que se formó ANTES del sweep no debe contar. El bot exige `formedAt / candleTime > sweep.detectedAt`.
 6. **Validar el sistema de calidad**:
    - Sweep + FVG + CHoCH → `HIGH`.
@@ -101,12 +123,12 @@ Resultado acotado a `[1, 10]`. Ejemplo HIGH típico: 5 (FVG+CHoCH) + 2 (H1) + 2 
             sweep detectado
                   │
                   ▼
-            [ WAITING ] ──── 45 min sin confirmar ───▶ [ EXPIRED ]
+            [ WAITING ] ── pasó límite de entrada / cambió sesión ──▶ [ EXPIRED ]
                   │
-       FVG o CHoCH (dirección correcta, post-sweep)
+       FVG o CHoCH (dirección correcta, post-sweep, sesión aún abierta)
                   │
                   ▼
-           [ CONFIRMED ]   (calcula calidad + score + bias, loggea)
+           [ CONFIRMED ]   (calcula calidad + score + bias + sesión, loggea)
 ```
 
 - `SETUP_INVALIDATED` está reservado (lo usará el módulo de Execution); el flujo actual solo produce `WAITING → CONFIRMED/EXPIRED`.
@@ -123,7 +145,8 @@ Durante el forward test, contar:
 
 - **"Setup.mqh not found"**: typo en el include o archivo no copiado a `MQL5/Include/`.
 - **Nunca aparece SWEEP_DETECTED**: revisar que Liquidity tenga niveles (`VerboseLogging=true` → ver el resumen `===== Liquidity =====`). Sin niveles activos no hay sweeps.
-- **Sweeps detectados pero nunca CONFIRMED**: normal si no aparece FVG/CHoCH en la dirección dentro de 45 min (deberían expirar). Subir `VerboseLogging` para ver las líneas `[SETUP v]` cuando sí casan.
+- **Sweeps detectados pero nunca CONFIRMED**: normal si no aparece FVG/CHoCH en la dirección antes de que cierre la ventana de entrada de la sesión (deberían expirar). Subir `VerboseLogging` para ver las líneas `[SETUP v]` cuando sí casan.
+- **Nunca aparece NINGÚN SWEEP_DETECTED en horario hábil**: revisar la conversión de hora NY (`GMTToNY` en `Liquidity.mqh`). Si el offset NY/DST está mal, las ventanas de sesión se corren y todo cae fuera de horario. El offset DST automático es un TODO V2 en `Liquidity.mqh`.
 - **Confirma con dirección equivocada**: revisar el emparejamiento (sweep bearish → FVG/CHoCH bearish).
 - **"STRUCT_TF_M1 not declared"**: el enum `ENUM_STRUCT_TIMEFRAME` en `Common.mqh` necesita `STRUCT_TF_M1` y `Structure.mqh` debe mapearlo a `PERIOD_M1` (se agregó en este módulo para CHoCH en M1).
 

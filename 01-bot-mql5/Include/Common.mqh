@@ -234,7 +234,7 @@ enum ENUM_SETUP_STATE
 {
    SETUP_WAITING,       // Sweep detectado, esperando confirmacion LTF
    SETUP_CONFIRMED,     // FVG + CHoCH confirmados, setup valido
-   SETUP_EXPIRED,       // Pasaron 45 min sin confirmacion
+   SETUP_EXPIRED,       // Paso el limite de entrada de la sesion sin confirmar
    SETUP_INVALIDATED    // Algo invalido el setup (reservado para Execution)
 };
 
@@ -242,7 +242,7 @@ struct TradeSetup
 {
    datetime              detectedAt;       // Cuando se detecto el sweep inicial
    datetime              confirmedAt;      // Cuando se confirmo (0 si waiting)
-   datetime              expiresAt;        // detectedAt + 45 min
+   ENUM_SESSION          entrySession;     // Sesion (Londres/NY) en que se detecto el sweep
    ENUM_SETUP_STATE      state;
    ENUM_SETUP_QUALITY    quality;
    ENUM_DIRECTION        direction;        // DIR_BULLISH (long) o DIR_BEARISH (short)
