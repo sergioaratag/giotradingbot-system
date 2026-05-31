@@ -264,4 +264,43 @@ struct TradeSetup
    int                   qualityScore;     // 1-10 combinado
 };
 
+// Sizing (Modulo 7): calcula riesgo y lotes para un setup CONFIRMED.
+// NO ejecuta trades; solo loggea "habria operado con X lotes".
+enum ENUM_KILLZONE_STATUS
+{
+   IN_KILLZONE,          // Dentro de London KZ, NY AM, o NY Lunch
+   IN_SESSION_NO_KZ,     // En Londres/NY pero fuera de killzones
+   OUTSIDE_SESSION       // Fuera de horario
+};
+
+struct SizingResult
+{
+   string                symbol;
+   ENUM_DIRECTION        direction;
+
+   double                entryPrice;       // Centro de la zona FVG
+   double                slPrice;
+   double                tp1Price;
+   double                tp2Price;
+
+   double                slPips;
+   double                tp1Pips;
+   double                tp2Pips;
+
+   double                riskBasePct;      // 0.5 / 1.0 / 1.5
+   double                multBias;
+   double                multKillzone;
+   double                riskEffectivePct;
+   double                riskUSD;
+
+   double                lotsRaw;
+   double                lotsFinal;
+
+   ENUM_KILLZONE_STATUS  killzoneStatus;
+   bool                  biasAligned;
+
+   bool                  isValid;          // false si algo fundamental impide calcular
+   string                rejectionReason;
+};
+
 #endif // COMMON_MQH

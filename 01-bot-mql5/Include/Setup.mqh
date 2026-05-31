@@ -27,6 +27,7 @@
 #include <FVG.mqh>
 #include <Structure.mqh>
 #include <Bias.mqh>
+#include <Sizing.mqh>
 
 //============================ PARAMETROS ============================
 #define SETUP_MAX_ACTIVE         10    // Maximo de setups WAITING en seguimiento
@@ -417,6 +418,10 @@ void Setup_Process(string symbol)
          s_setups[i].state        = SETUP_CONFIRMED;
          s_setups[i].confirmedAt  = now;
          Setup_LogSetup(s_setups[i], "CONFIRMED");
+
+         // Modulo 7: calcular riesgo y lotes (no ejecuta, solo loggea)
+         SizingResult sizing = Sizing_Calculate(s_setups[i]);
+         Sizing_LogResult(sizing);
       }
    }
 

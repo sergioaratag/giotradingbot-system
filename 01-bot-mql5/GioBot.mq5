@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Sergio Arata"
 #property link      "https://giotradingbot-system.vercel.app"
-#property version   "0.15"
+#property version   "0.16"
 #property strict
 
 #include <Common.mqh>
@@ -14,6 +14,7 @@
 #include <FVG.mqh>
 #include <Structure.mqh>
 #include <Bias.mqh>
+#include <Sizing.mqh>
 #include <Setup.mqh>
 
 // Inputs configurables desde MT5 GUI
@@ -38,11 +39,12 @@ int OnInit()
    FVG_Init();
    Structure_Init();
    Bias_Init();
+   Sizing_Init();
    Setup_Init();
    Setup_SetVerbose(VerboseLogging);
 
-   Print("GioBot v0.15 inicializado. Modulos: Liquidity + Sweep + FVG + Structure + Bias + Setup.");
-   Print("Modulo Setup cargado. El bot ahora detecta setups completos (sin ejecutar).");
+   Print("GioBot v0.16 inicializado. Modulos: Liquidity + Sweep + FVG + Structure + Bias + Sizing + Setup.");
+   Print("Modulo Sizing cargado. El bot ahora calcula lotes (sin ejecutar).");
    Print("Simbolos: ", Symbol1, ", ", Symbol2, " | Verbose: ", (VerboseLogging ? "ON" : "OFF"));
    return(INIT_SUCCEEDED);
 }
