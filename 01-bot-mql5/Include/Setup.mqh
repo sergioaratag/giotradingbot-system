@@ -28,6 +28,7 @@
 #include <Structure.mqh>
 #include <Bias.mqh>
 #include <Sizing.mqh>
+#include <Execution.mqh>
 
 //============================ PARAMETROS ============================
 #define SETUP_MAX_ACTIVE         10    // Maximo de setups WAITING en seguimiento
@@ -419,9 +420,13 @@ void Setup_Process(string symbol)
          s_setups[i].confirmedAt  = now;
          Setup_LogSetup(s_setups[i], "CONFIRMED");
 
-         // Modulo 7: calcular riesgo y lotes (no ejecuta, solo loggea)
+         // Modulo 7: calcular riesgo y lotes
          SizingResult sizing = Sizing_Calculate(s_setups[i]);
          Sizing_LogResult(sizing);
+
+         // Modulo 8: abrir la orden (Market o Limit hibrido)
+         TradeOpenResult tradeResult = Execution_OpenFromSizing(s_setups[i], sizing);
+         Execution_LogResult(tradeResult);
       }
    }
 

@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Sergio Arata"
 #property link      "https://giotradingbot-system.vercel.app"
-#property version   "0.16"
+#property version   "0.17"
 #property strict
 
 #include <Common.mqh>
@@ -15,6 +15,7 @@
 #include <Structure.mqh>
 #include <Bias.mqh>
 #include <Sizing.mqh>
+#include <Execution.mqh>
 #include <Setup.mqh>
 
 // Inputs configurables desde MT5 GUI
@@ -40,11 +41,12 @@ int OnInit()
    Structure_Init();
    Bias_Init();
    Sizing_Init();
+   Execution_Init();
    Setup_Init();
    Setup_SetVerbose(VerboseLogging);
 
-   Print("GioBot v0.16 inicializado. Modulos: Liquidity + Sweep + FVG + Structure + Bias + Sizing + Setup.");
-   Print("Modulo Sizing cargado. El bot ahora calcula lotes (sin ejecutar).");
+   Print("GioBot v0.17 inicializado. Modulos: Liquidity + Sweep + FVG + Structure + Bias + Sizing + Execution + Setup.");
+   Print("Modulo Execution cargado. EL BOT AHORA ABRE ORDENES REALES (Magic=", BOT_MAGIC_NUMBER, ").");
    Print("Simbolos: ", Symbol1, ", ", Symbol2, " | Verbose: ", (VerboseLogging ? "ON" : "OFF"));
    return(INIT_SUCCEEDED);
 }
@@ -99,6 +101,14 @@ void OnTick()
    {
       lastUpdateM1_S2 = currentM1_S2;
       Setup_Process(Symbol2);
+   }
+
+   // --- Modulo 8: cancelar pending orders expirados (1 vez por minuto) ---
+   static datetime lastExecCleanup = 0;
+   if(TimeCurrent() - lastExecCleanup >= 60)
+   {
+      Execution_CancelExpiredLimits();
+      lastExecCleanup = TimeCurrent();
    }
 }
 

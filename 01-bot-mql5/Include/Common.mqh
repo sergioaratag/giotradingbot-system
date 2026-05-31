@@ -303,4 +303,46 @@ struct SizingResult
    string                rejectionReason;
 };
 
+// Execution (Modulo 8): apertura de ordenes reales.
+enum ENUM_ORDER_KIND
+{
+   ORDER_KIND_MARKET,
+   ORDER_KIND_LIMIT
+};
+
+enum ENUM_TRADE_RESULT
+{
+   TRADE_OPENED,           // Orden enviada exitosamente
+   TRADE_REJECTED_RISK,    // Bloqueada por cap de riesgo total
+   TRADE_REJECTED_DAILY,   // Bloqueada por daily loss -1.5%
+   TRADE_REJECTED_SPREAD,  // Spread demasiado alto (reservado Modulo 10)
+   TRADE_FAILED_SEND,      // OrderSend devolvio error
+   TRADE_INVALID_SIZING    // SizingResult.isValid = false
+};
+
+struct TradeOpenResult
+{
+   ENUM_TRADE_RESULT  result;
+   ulong              ticket;          // Ticket del trade abierto (0 si fallo)
+   string             rejectionReason;
+   ENUM_ORDER_KIND    orderKind;
+   double             requestedPrice;
+   double             executedPrice;   // Solo si Market y se ejecuto
+   string             symbol;
+   ENUM_DIRECTION     direction;
+   double             lots;
+   double             sl;
+   double             tp;              // TP1 inicial (TP2/runner los maneja Modulo 9)
+   int                magicNumber;
+   string             comment;
+};
+
+// Identificador unico del bot en ordenes (filtro para nuestras propias posiciones)
+#define BOT_MAGIC_NUMBER                  871234
+#define EXECUTION_HYBRID_THRESHOLD_PIPS   5.0
+#define EXECUTION_LIMIT_VALIDITY_MINUTES  45
+#define EXECUTION_DAILY_LOSS_PCT          1.5
+#define EXECUTION_RISK_CAP_PCT            1.5
+#define EXECUTION_SLIPPAGE_POINTS         20    // 2 pips de slippage tolerado en Market
+
 #endif // COMMON_MQH
