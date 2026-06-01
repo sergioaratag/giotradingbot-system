@@ -454,4 +454,24 @@ int Structure_DetectEvents(string symbol, ENUM_STRUCT_TIMEFRAME tf,
    return 1;
 }
 
+// Peek NO-CONSUMIDOR sobre s_structEvents. A diferencia de
+// Structure_DetectEvents, no escanea ni dedupea: solo consulta los eventos
+// ya almacenados. Util para modulos que necesitan reaccionar a CHoCH
+// despues de que Setup_Process los detecto (ej: Management cerrando por
+// CHoCH contrario sin volver a "consumirlos").
+bool Structure_HasEventSince(string symbol, ENUM_STRUCT_TIMEFRAME tf,
+                             ENUM_STRUCT_EVENT eventType, datetime sinceTime)
+{
+   int n = ArraySize(s_structEvents);
+   for(int i = n - 1; i >= 0; i--)
+   {
+      if(s_structEvents[i].symbol     != symbol)    continue;
+      if(s_structEvents[i].timeframe  != tf)        continue;
+      if(s_structEvents[i].eventType  != eventType) continue;
+      if(s_structEvents[i].candleTime <= sinceTime) continue;
+      return true;
+   }
+   return false;
+}
+
 #endif // STRUCTURE_MQH

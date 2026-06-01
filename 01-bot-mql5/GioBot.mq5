@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Sergio Arata"
 #property link      "https://giotradingbot-system.vercel.app"
-#property version   "0.17"
+#property version   "0.18"
 #property strict
 
 #include <Common.mqh>
@@ -17,6 +17,7 @@
 #include <Sizing.mqh>
 #include <Execution.mqh>
 #include <Setup.mqh>
+#include <Management.mqh>
 
 // Inputs configurables desde MT5 GUI
 input string Symbol1        = "EURUSD";
@@ -44,9 +45,10 @@ int OnInit()
    Execution_Init();
    Setup_Init();
    Setup_SetVerbose(VerboseLogging);
+   Management_Init();
 
-   Print("GioBot v0.17 inicializado. Modulos: Liquidity + Sweep + FVG + Structure + Bias + Sizing + Execution + Setup.");
-   Print("Modulo Execution cargado. EL BOT AHORA ABRE ORDENES REALES (Magic=", BOT_MAGIC_NUMBER, ").");
+   Print("GioBot v0.18 inicializado. Modulos: Liquidity + Sweep + FVG + Structure + Bias + Sizing + Execution + Setup + Management.");
+   Print("Modulo Management cargado. Trailing escalonado + salida CHoCH activo (Magic=", BOT_MAGIC_NUMBER, ").");
    Print("Simbolos: ", Symbol1, ", ", Symbol2, " | Verbose: ", (VerboseLogging ? "ON" : "OFF"));
    return(INIT_SUCCEEDED);
 }
@@ -71,6 +73,9 @@ void OnDeinit(const int reason)
 //+------------------------------------------------------------------+
 void OnTick()
 {
+   // --- Modulo 9: gestion de posiciones (cada tick para reaccion rapida) ---
+   Management_Process();
+
    // --- Refresco de liquidez en cierre H1 ---
    datetime currentH1_S1 = iTime(Symbol1, PERIOD_H1, 0);
    if(currentH1_S1 != lastUpdateH1_S1)

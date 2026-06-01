@@ -345,4 +345,32 @@ struct TradeOpenResult
 #define EXECUTION_RISK_CAP_PCT            1.5
 #define EXECUTION_SLIPPAGE_POINTS         20    // 2 pips de slippage tolerado en Market
 
+// Management (Modulo 9): trailing escalonado + salida CHoCH + salida noticias.
+enum ENUM_CLOSE_REASON
+{
+   CLOSE_REASON_SL_HIT,            // SL pegado (inicial, BE, o trailed)
+   CLOSE_REASON_CHOCH_CONTRARY,    // CHoCH contrario en M5
+   CLOSE_REASON_NEWS_HIGH,         // Noticia HIGH inminente con BE/profit
+   CLOSE_REASON_MANUAL,            // Cierre manual (futuro)
+   CLOSE_REASON_KILL_SWITCH        // Kill switch activado (futuro Modulo 12)
+};
+
+struct PositionState
+{
+   ulong              ticket;
+   string             symbol;
+   ENUM_DIRECTION     direction;
+   double             entryPrice;
+   double             initialSL;
+   double             currentSL;
+   double             slDistance;       // |entry - initialSL| en precio (= 1R)
+   int                rLevelReached;    // 0 = aun no 1R; 1 = ya 1R; etc.
+   datetime           openedAt;
+   datetime           lastSLUpdate;
+};
+
+#define MGMT_BUFFER_PIPS           1.0     // Buffer al mover SL (en pips, a favor)
+#define MGMT_NEWS_BEFORE_MINUTES   5       // Cerrar 5 min antes de noticia HIGH (si BE+)
+#define MGMT_CHOCH_TF              STRUCT_TF_M5   // TF para detectar CHoCH contrario
+
 #endif // COMMON_MQH
