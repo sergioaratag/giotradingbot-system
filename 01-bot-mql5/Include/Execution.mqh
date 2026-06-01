@@ -28,6 +28,7 @@
 #include <Common.mqh>
 #include <Liquidity.mqh>   // GMTToNY / NYToServer / BuildNYDateTime
 #include <Sizing.mqh>
+#include <Filters.mqh>
 #include <Trade/Trade.mqh>
 
 //============================ HELPERS PRIVADOS ======================
@@ -97,6 +98,7 @@ string TradeResultToString(ENUM_TRADE_RESULT r)
       case TRADE_REJECTED_RISK:    return "REJECTED_RISK";
       case TRADE_REJECTED_DAILY:   return "REJECTED_DAILY_LOSS";
       case TRADE_REJECTED_SPREAD:  return "REJECTED_SPREAD";
+      case TRADE_REJECTED_FILTER:  return "REJECTED_FILTER";
       case TRADE_FAILED_SEND:      return "FAILED_SEND";
       case TRADE_INVALID_SIZING:   return "INVALID_SIZING";
    }
@@ -293,6 +295,16 @@ TradeOpenResult Execution_OpenFromSizing(TradeSetup &setup, SizingResult &sizing
    {
       r.result          = TRADE_INVALID_SIZING;
       r.rejectionReason = sizing.rejectionReason;
+      return r;
+   }
+
+   // 1b) Filtros pre-entrada (Modulo 10: spread / ATR / viernes-tarde)
+   FilterCheckResult filterResult = Filters_CheckEntry(setup.symbol);
+   if(!filterResult.passed)
+   {
+      r.result          = TRADE_REJECTED_FILTER;
+      r.rejectionReason = filterResult.reason;
+      Filters_LogCheck(setup.symbol, filterResult);
       return r;
    }
 

@@ -315,7 +315,8 @@ enum ENUM_TRADE_RESULT
    TRADE_OPENED,           // Orden enviada exitosamente
    TRADE_REJECTED_RISK,    // Bloqueada por cap de riesgo total
    TRADE_REJECTED_DAILY,   // Bloqueada por daily loss -1.5%
-   TRADE_REJECTED_SPREAD,  // Spread demasiado alto (reservado Modulo 10)
+   TRADE_REJECTED_SPREAD,  // Spread demasiado alto (legacy; ahora cubierto por TRADE_REJECTED_FILTER)
+   TRADE_REJECTED_FILTER,  // Bloqueada por Modulo 10 (spread/ATR/viernes-tarde)
    TRADE_FAILED_SEND,      // OrderSend devolvio error
    TRADE_INVALID_SIZING    // SizingResult.isValid = false
 };
@@ -372,5 +373,24 @@ struct PositionState
 #define MGMT_BUFFER_PIPS           1.0     // Buffer al mover SL (en pips, a favor)
 #define MGMT_NEWS_BEFORE_MINUTES   5       // Cerrar 5 min antes de noticia HIGH (si BE+)
 #define MGMT_CHOCH_TF              STRUCT_TF_M5   // TF para detectar CHoCH contrario
+
+// Filters (Modulo 10): filtros pre-entrada + cierre forzado viernes.
+struct FilterCheckResult
+{
+   bool        passed;
+   string      reason;
+   double      currentSpread;     // pips
+   double      currentATR;        // pips, ATR(14) H1
+};
+
+#define FILTER_SPREAD_MAX_EURUSD        1.5
+#define FILTER_SPREAD_MAX_GBPUSD        2.0
+#define FILTER_SPREAD_MAX_DEFAULT       2.0
+#define FILTER_ATR_MIN_EURUSD           8.0
+#define FILTER_ATR_MIN_GBPUSD           10.0
+#define FILTER_ATR_MIN_DEFAULT          8.0
+#define FILTER_ATR_PERIOD               14
+#define FILTER_FRIDAY_NO_ENTRY_HOUR     12    // 12:00 NY (no abrir nuevas)
+#define FILTER_FRIDAY_FORCE_CLOSE_HOUR  16    // 16:00 NY (cerrar forzado)
 
 #endif // COMMON_MQH

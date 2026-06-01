@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Sergio Arata"
 #property link      "https://giotradingbot-system.vercel.app"
-#property version   "0.18"
+#property version   "0.19"
 #property strict
 
 #include <Common.mqh>
@@ -15,6 +15,7 @@
 #include <Structure.mqh>
 #include <Bias.mqh>
 #include <Sizing.mqh>
+#include <Filters.mqh>
 #include <Execution.mqh>
 #include <Setup.mqh>
 #include <Management.mqh>
@@ -42,13 +43,14 @@ int OnInit()
    Structure_Init();
    Bias_Init();
    Sizing_Init();
+   Filters_Init();
    Execution_Init();
    Setup_Init();
    Setup_SetVerbose(VerboseLogging);
    Management_Init();
 
-   Print("GioBot v0.18 inicializado. Modulos: Liquidity + Sweep + FVG + Structure + Bias + Sizing + Execution + Setup + Management.");
-   Print("Modulo Management cargado. Trailing escalonado + salida CHoCH activo (Magic=", BOT_MAGIC_NUMBER, ").");
+   Print("GioBot v0.19 inicializado. Modulos: Liquidity + Sweep + FVG + Structure + Bias + Sizing + Filters + Execution + Setup + Management.");
+   Print("Modulo Filters cargado. Pre-entrada (spread/ATR/viernes) + cierre forzado viernes 16:00 NY.");
    Print("Simbolos: ", Symbol1, ", ", Symbol2, " | Verbose: ", (VerboseLogging ? "ON" : "OFF"));
    return(INIT_SUCCEEDED);
 }
@@ -108,12 +110,13 @@ void OnTick()
       Setup_Process(Symbol2);
    }
 
-   // --- Modulo 8: cancelar pending orders expirados (1 vez por minuto) ---
-   static datetime lastExecCleanup = 0;
-   if(TimeCurrent() - lastExecCleanup >= 60)
+   // --- Tareas periodicas (1 vez por minuto): Modulos 8 + 10 ---
+   static datetime lastMinuteTask = 0;
+   if(TimeCurrent() - lastMinuteTask >= 60)
    {
-      Execution_CancelExpiredLimits();
-      lastExecCleanup = TimeCurrent();
+      Execution_CancelExpiredLimits();    // M8: limpia pendings vencidos (45 min / fin de sesion)
+      Filters_EnforceFridayClosing();     // M10: cierre forzado viernes >= 16:00 NY
+      lastMinuteTask = TimeCurrent();
    }
 }
 
