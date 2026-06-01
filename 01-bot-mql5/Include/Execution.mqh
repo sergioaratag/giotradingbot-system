@@ -258,7 +258,7 @@ void Execution_LogResult(TradeOpenResult &r)
          Print("  Precio limit: ", DoubleToString(r.requestedPrice, 5),
                " (valido ", EXECUTION_LIMIT_VALIDITY_MINUTES, " min)");
       Print("  SL: ", DoubleToString(r.sl, 5),
-            " | TP1: ", DoubleToString(r.tp, 5));
+            " | TP: sin TP fijo (trailing escalonado Modulo 9)");
       Print("  Comment: ", r.comment, " | Magic: ", r.magicNumber);
       Print("============================");
    }
@@ -344,7 +344,7 @@ TradeOpenResult Execution_OpenFromSizing(TradeSetup &setup, SizingResult &sizing
 
    r.lots = effectiveLots;
    r.sl   = sizing.slPrice;
-   r.tp   = sizing.tp1Price;   // Solo TP1 inicial; TP2 + runner los maneja Modulo 9.
+   r.tp   = 0.0;   // Sin TP fijo - el cierre lo gestiona Modulo 9 via trailing escalonado.
 
    // 5) Hibrido Market vs Limit
    double currentPrice = (setup.direction == DIR_BEARISH
@@ -393,22 +393,23 @@ TradeOpenResult Execution_OpenFromSizing(TradeSetup &setup, SizingResult &sizing
 
    bool sent = false;
 
+   // TP siempre 0.0 (sin TP fijo) - Modulo 9 cierra via trailing escalonado.
    if(useMarket)
    {
       if(setup.direction == DIR_BEARISH)
-         sent = trade.Sell(effectiveLots, setup.symbol, 0.0, r.sl, r.tp, r.comment);
+         sent = trade.Sell(effectiveLots, setup.symbol, 0.0, r.sl, 0.0, r.comment);
       else
-         sent = trade.Buy (effectiveLots, setup.symbol, 0.0, r.sl, r.tp, r.comment);
+         sent = trade.Buy (effectiveLots, setup.symbol, 0.0, r.sl, 0.0, r.comment);
    }
    else
    {
       datetime expiration = TimeCurrent() + (datetime)EXECUTION_LIMIT_VALIDITY_MINUTES * 60;
       if(setup.direction == DIR_BEARISH)
          sent = trade.SellLimit(effectiveLots, r.requestedPrice, setup.symbol,
-                                r.sl, r.tp, ORDER_TIME_SPECIFIED, expiration, r.comment);
+                                r.sl, 0.0, ORDER_TIME_SPECIFIED, expiration, r.comment);
       else
          sent = trade.BuyLimit (effectiveLots, r.requestedPrice, setup.symbol,
-                                r.sl, r.tp, ORDER_TIME_SPECIFIED, expiration, r.comment);
+                                r.sl, 0.0, ORDER_TIME_SPECIFIED, expiration, r.comment);
    }
 
    if(!sent)

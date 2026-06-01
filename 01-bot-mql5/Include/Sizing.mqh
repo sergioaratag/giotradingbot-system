@@ -156,7 +156,15 @@ SizingResult Sizing_Calculate(TradeSetup &setup)
 
    r.slPips = MathAbs(r.entryPrice - r.slPrice) / pip;
 
-   // === TPs ===
+   // === TPs (LEGACY - V1 no usa TP fijo) =============================
+   // NOTA: tp1Price y tp2Price NO se envian como TP en la orden (Execution
+   // los ignora y pasa TP=0). El cierre lo decide el Modulo 9 via trailing
+   // escalonado. tp1/tp2 quedan calculados como referencia informativa
+   // (R:R 1.5 y 3.0 de la estrategia anterior con parciales), pero el
+   // Modulo 9 calculara sus propios R-levels enteros (1R, 2R, 3R, ...)
+   // a partir de entry +/- slDistance * N. No tomar dependencias nuevas
+   // sobre estos valores; estan marcados para eventual remocion.
+   // ==================================================================
    double slDistance = MathAbs(r.entryPrice - r.slPrice);
    if(setup.direction == DIR_BEARISH)
    {

@@ -332,7 +332,7 @@ struct TradeOpenResult
    ENUM_DIRECTION     direction;
    double             lots;
    double             sl;
-   double             tp;              // TP1 inicial (TP2/runner los maneja Modulo 9)
+   double             tp;              // Siempre 0 en V1: cierre via trailing escalonado (Modulo 9). Campo conservado por compatibilidad.
    int                magicNumber;
    string             comment;
 };
