@@ -20,6 +20,7 @@
 
 #include <Common.mqh>
 #include <Liquidity.mqh>   // GMTToNY
+#include <News.mqh>
 #include <Trade/Trade.mqh>
 
 //============================ HELPERS PRIVADOS ======================
@@ -143,6 +144,23 @@ FilterCheckResult Filters_CheckEntry(string symbol)
    {
       r.passed = false;
       r.reason = "Viernes >= 12:00 NY - no se abren nuevas posiciones";
+      return r;
+   }
+
+   // === 4) Modulo 11: noticias - modo conservador si cache no confiable ===
+   if(!News_CanQueryReliably())
+   {
+      r.passed = false;
+      r.reason = "Calendario de noticias no confiable (cache vencida o nunca fetched) - modo conservador";
+      return r;
+   }
+
+   // === 5) Modulo 11: bloqueo si hay noticia HIGH en ventana +/-30 min ====
+   if(News_HasHighImpactInWindow(symbol, NEWS_BLOCK_BEFORE_MINUTES))
+   {
+      r.passed = false;
+      r.reason = StringFormat("Noticia HIGH dentro de ventana +/-%d min",
+                              NEWS_BLOCK_BEFORE_MINUTES);
       return r;
    }
 

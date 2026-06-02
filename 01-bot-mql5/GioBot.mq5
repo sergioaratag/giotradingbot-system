@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Sergio Arata"
 #property link      "https://giotradingbot-system.vercel.app"
-#property version   "0.19"
+#property version   "0.20"
 #property strict
 
 #include <Common.mqh>
@@ -15,6 +15,7 @@
 #include <Structure.mqh>
 #include <Bias.mqh>
 #include <Sizing.mqh>
+#include <News.mqh>
 #include <Filters.mqh>
 #include <Execution.mqh>
 #include <Setup.mqh>
@@ -25,6 +26,7 @@ input string Symbol1        = "EURUSD";
 input string Symbol2        = "GBPUSD";
 input bool   EnableLogging  = true;   // Resumen de liquidez en modo verbose
 input bool   VerboseLogging = false;  // true: logs por modulo. false: solo setups.
+input string BotApiKey      = "";     // x-bot-api-key para /api/news/bot-today del journal Vercel
 
 // Last update trackers (por simbolo)
 datetime lastUpdateH1_S1 = 0;
@@ -43,14 +45,22 @@ int OnInit()
    Structure_Init();
    Bias_Init();
    Sizing_Init();
+   News_Init();
+   News_SetApiKey(BotApiKey);
    Filters_Init();
    Execution_Init();
    Setup_Init();
    Setup_SetVerbose(VerboseLogging);
    Management_Init();
 
-   Print("GioBot v0.19 inicializado. Modulos: Liquidity + Sweep + FVG + Structure + Bias + Sizing + Filters + Execution + Setup + Management.");
-   Print("Modulo Filters cargado. Pre-entrada (spread/ATR/viernes) + cierre forzado viernes 16:00 NY.");
+   // Fetch inicial de noticias (sincrono). Si falla, Filters bloquea aperturas
+   // hasta el siguiente fetch OK (modo conservador).
+   News_FetchFromApi();
+   Print("GioBot v0.20 inicializado. Modulos: Liquidity + Sweep + FVG + Structure + Bias + Sizing + News + Filters + Execution + Setup + Management.");
+   Print("Modulo News cargado. Endpoint: ", NEWS_API_ENDPOINT,
+         " | Cache confiable: ", (News_CanQueryReliably() ? "SI" : "NO"));
+   if(StringLen(BotApiKey) == 0)
+      Print("[WARN] Input BotApiKey vacio - News fetch fallara. Configurar antes de operar.");
    Print("Simbolos: ", Symbol1, ", ", Symbol2, " | Verbose: ", (VerboseLogging ? "ON" : "OFF"));
    return(INIT_SUCCEEDED);
 }
@@ -118,6 +128,10 @@ void OnTick()
       Filters_EnforceFridayClosing();     // M10: cierre forzado viernes >= 16:00 NY
       lastMinuteTask = TimeCurrent();
    }
+
+   // --- Tarea periodica (1 vez por hora): Modulo 11 News refresh ---
+   // WebRequest es bloqueante; por eso solo 1x/h y nunca en cada tick.
+   News_TickUpdate();
 }
 
 //+------------------------------------------------------------------+

@@ -29,6 +29,7 @@
 
 #include <Common.mqh>
 #include <Structure.mqh>
+#include <News.mqh>
 #include <Trade/Trade.mqh>
 
 //============================ STORAGE ===============================
@@ -110,15 +111,13 @@ void Management_Init()
    ArrayResize(s_positions, 0);
 }
 
-// STUB hasta que Modulo 11 (filtro de noticias) este implementado.
-// Cuando Modulo 11 exista, retornara:
-//   return News_IsHighImpactSoon(symbol, MGMT_NEWS_BEFORE_MINUTES);
-// teniendo en cuenta las divisas relevantes al par (USD+EUR para EURUSD,
-// USD+GBP para GBPUSD, etc).
+// Conectado a Modulo 11 (News). Cerrar 5 min antes de noticia HIGH en USD/EUR
+// (EURUSD) o USD/GBP (GBPUSD). Si la cache no es confiable, devolvemos false
+// para no cerrar posiciones por error sin datos validos.
 bool Management_ShouldCloseByNews(string symbol)
 {
-   // TODO Modulo 11: conectar con calendario de noticias real.
-   return false;
+   if(!News_CanQueryReliably()) return false;
+   return News_IsHighImpactSoon(symbol, MGMT_NEWS_BEFORE_MINUTES);
 }
 
 // Retorna el estado actual de las posiciones gestionadas.

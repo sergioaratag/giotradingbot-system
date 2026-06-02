@@ -393,4 +393,25 @@ struct FilterCheckResult
 #define FILTER_FRIDAY_NO_ENTRY_HOUR     12    // 12:00 NY (no abrir nuevas)
 #define FILTER_FRIDAY_FORCE_CLOSE_HOUR  16    // 16:00 NY (cerrar forzado)
 
+// News (Modulo 11): cliente HTTP del journal Vercel.
+struct NewsEvent
+{
+   string    id;
+   string    title;
+   string    currency;        // USD, EUR, GBP, JPY, ...
+   string    impact;          // HIGH, MEDIUM, LOW
+   datetime  scheduledAt;     // UTC (parseado de ISO "...Z")
+   bool      isActive;        // Server-side: dentro de ventana de bloqueo (+/-30 min)
+   bool      isBlocked;       // Server-side: alias de isActive en este endpoint
+   bool      hasPassed;
+   bool      isUpcoming;
+};
+
+#define NEWS_API_ENDPOINT             "https://giotradingbot-system.vercel.app/api/news/bot-today"
+#define NEWS_BLOCK_BEFORE_MINUTES     30
+#define NEWS_BLOCK_AFTER_MINUTES      30
+#define NEWS_FETCH_INTERVAL_SECONDS   3600    // 1 hora
+#define NEWS_CACHE_MAX_AGE_SECONDS    43200   // 12 horas (modo conservador si excede)
+#define NEWS_WEBREQUEST_TIMEOUT_MS    5000
+
 #endif // COMMON_MQH
