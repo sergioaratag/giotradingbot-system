@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { sendTelegram } from "@/lib/telegram";
+import { formatTradeClosed } from "@/lib/telegram-messages";
 
 export const dynamic = "force-dynamic";
+
+const BIG_LOSS_THRESHOLD_USD = 50;
 
 const CLOSE_REASONS = [
   "SL_HIT",
@@ -77,6 +81,21 @@ export async function POST(req: Request) {
       },
     },
   });
+
+  // Modulo 14: notificacion Telegram. Sonido solo si perdida grande.
+  const bigLoss =
+    Number.isFinite(pnlUSD) && pnlUSD < -BIG_LOSS_THRESHOLD_USD;
+  sendTelegram(
+    formatTradeClosed({
+      mt5Ticket,
+      pair,
+      closePrice,
+      pnlUSD: Number.isFinite(pnlUSD) ? pnlUSD : 0,
+      rAchieved: Number.isFinite(rAchieved) ? rAchieved : undefined,
+      closeReason,
+    }),
+    { silent: !bigLoss },
+  ).catch((e) => console.error("[telegram] TRADE_CLOSED:", e));
 
   return NextResponse.json({ ok: true, tradeUpdated: updated });
 }

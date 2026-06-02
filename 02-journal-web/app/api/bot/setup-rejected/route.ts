@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { sendTelegram } from "@/lib/telegram";
+import { formatSetupRejectedHigh } from "@/lib/telegram-messages";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +35,21 @@ export async function POST(req: Request) {
       metadata: body,
     },
   });
+
+  // Modulo 14: Telegram solo si quality=HIGH (los MEDIUM/LOW serian spam).
+  if (body.qualityRating === "HIGH") {
+    sendTelegram(
+      formatSetupRejectedHigh({
+        pair,
+        direction: body.direction,
+        qualityRating: body.qualityRating,
+        qualityScore:
+          typeof body.qualityScore === "number" ? body.qualityScore : undefined,
+        rejectionReason,
+      }),
+      { silent: true },
+    ).catch((e) => console.error("[telegram] SETUP_REJECTED:", e));
+  }
 
   return NextResponse.json({ ok: true });
 }

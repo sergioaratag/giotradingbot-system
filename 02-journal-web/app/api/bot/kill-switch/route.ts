@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { sendTelegram } from "@/lib/telegram";
+import {
+  formatKillSwitchActivated,
+  formatKillSwitchDeactivated,
+} from "@/lib/telegram-messages";
 
 export const dynamic = "force-dynamic";
 
@@ -64,6 +69,12 @@ export async function POST(req: Request) {
       },
     });
   }
+
+  // Modulo 14: Telegram con sonido cuando el user activa/desactiva manualmente.
+  sendTelegram(
+    activated ? formatKillSwitchActivated() : formatKillSwitchDeactivated(),
+    { silent: !activated },
+  ).catch((e) => console.error("[telegram] KILL_SWITCH:", e));
 
   return NextResponse.json({ ok: true, killSwitch: activated });
 }

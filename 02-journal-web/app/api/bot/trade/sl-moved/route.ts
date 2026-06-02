@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { sendTelegram } from "@/lib/telegram";
+import { formatSLMoved } from "@/lib/telegram-messages";
 
 export const dynamic = "force-dynamic";
 
@@ -54,6 +56,12 @@ export async function POST(req: Request) {
       metadata: { mt5Ticket, newSL, rLevelReached, tradeFound: updated },
     },
   });
+
+  // Modulo 14: notificacion Telegram (silenciosa, sin sonido).
+  sendTelegram(
+    formatSLMoved({ mt5Ticket, pair, newSL, rLevelReached }),
+    { silent: true },
+  ).catch((e) => console.error("[telegram] SL_MOVED:", e));
 
   return NextResponse.json({ ok: true, tradeUpdated: updated });
 }

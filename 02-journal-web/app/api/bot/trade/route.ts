@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import type { TradeDirection, QualityRating } from "@prisma/client";
+import { sendTelegram } from "@/lib/telegram";
+import { formatTradeOpened } from "@/lib/telegram-messages";
 
 const DIRECTIONS = ["LONG", "SHORT"] as const;
 const QUALITIES = ["HIGH", "MEDIUM", "LOW"] as const;
@@ -80,6 +82,28 @@ export async function POST(req: Request) {
           : undefined,
     },
   });
+
+  // Modulo 14: notificacion Telegram fire-and-forget (con sonido).
+  // NO await: el bot MT5 tiene timeout corto en WebRequest.
+  sendTelegram(
+    formatTradeOpened({
+      mt5Ticket: trade.mt5Ticket ?? "?",
+      pair,
+      direction,
+      qualityRating: trade.qualityRating ?? null,
+      qualityScore:
+        typeof body.qualityScore === "number" ? body.qualityScore : undefined,
+      biasHTF: trade.biasHTF ?? null,
+      killzone: trade.killzone ?? null,
+      entryPrice,
+      stopLoss,
+      positionSize: trade.positionSize,
+      riskPercent: trade.riskPercent,
+      riskUSD: trade.riskUSD,
+      confluences,
+    }),
+    { silent: false },
+  ).catch((e) => console.error("[telegram] TRADE_OPENED:", e));
 
   return NextResponse.json(
     { ok: true, tradeId: trade.id, mt5Ticket: trade.mt5Ticket },
