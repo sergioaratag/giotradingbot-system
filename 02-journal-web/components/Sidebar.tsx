@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import {
   LayoutDashboard,
+  LineChart,
   TrendingUp,
   CheckSquare,
   FileText,
@@ -18,6 +19,7 @@ import { playSound } from "@/lib/sounds";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/dashboard/chart", label: "Chart", icon: LineChart },
   { href: "/trades", label: "Trades", icon: TrendingUp },
   { href: "/tasks", label: "Tasks", icon: CheckSquare },
   { href: "/notes", label: "Notes", icon: FileText },
@@ -45,7 +47,13 @@ export function Sidebar({
 
       <nav className="flex-1 px-3 space-y-0.5 overflow-y-auto">
         {NAV.map(({ href, label, icon: Icon }) => {
-          const active = pathname === href || pathname.startsWith(href + "/");
+          // Match exacto para rutas "raiz" como /dashboard que tienen
+          // hermanas mas especificas (ej. /dashboard/chart); prefix match
+          // para el resto.
+          const isRootShared = href === "/dashboard";
+          const active = isRootShared
+            ? pathname === href
+            : pathname === href || pathname.startsWith(href + "/");
           return (
             <Link
               key={href}
