@@ -1,25 +1,33 @@
 //+------------------------------------------------------------------+
-//| KillSwitch.mqh - Modulo 12: kill switch remoto via HTTP polling. |
+//| KillSwitch.mqh - Modulo 12: dos flags remotos via HTTP polling.  |
 //|                                                                  |
-//| Polling cada 30s al journal Vercel:                              |
-//|   GET https://giotradingbot-system.vercel.app/api/bot/kill-switch
-//|       Header: x-bot-api-key                                      |
-//|       Resp:   { "killSwitch": bool, "botEnabled": bool }         |
+//| GET https://giotradingbot-system.vercel.app/api/bot/kill-switch  |
+//|     Header: x-bot-api-key                                        |
+//|     Resp:   { "killSwitch": bool, "botEnabled": bool }           |
 //|                                                                  |
-//| Politica:                                                        |
-//|   - killSwitch == true  -> bot dormido (cierre forzado total)    |
-//|   - botEnabled == false -> bot dormido (igual que kill switch)   |
-//|   - cualquiera de los dos activa el protocolo                    |
+//| Politica (separada por Sergio):                                  |
 //|                                                                  |
-//| FAIL-OPEN: si WebRequest falla (timeout, -1, !=200), NO cambiar  |
-//| el estado conocido. El bot sigue operando. El kill switch solo   |
-//| dispara con una respuesta 200 explicita que lo indique.          |
+//|   killSwitch=true  -> EMERGENCIA: cerrar todas las posiciones    |
+//|                       + cancelar pendings + bloquear nuevas      |
 //|                                                                  |
-//| Idempotencia: enforcementDone evita cerrar posiciones multiples  |
-//| veces. Se resetea cuando el flag remoto vuelve a false.          |
+//|   botEnabled=false -> APAGADO PROGRESIVO: solo bloquear nuevas;  |
+//|                       las posiciones abiertas siguen su curso    |
+//|                       (trailing, BE, news, CHoCH siguen activos) |
 //|                                                                  |
-//| Logging: solo en transiciones (OFF->ON / ON->OFF) y al cierre    |
-//| masivo. Polls exitosos OFF son silenciosos.                      |
+//|   Prioridad: killSwitch manda. Si killSwitch=true, botEnabled se |
+//|   ignora porque el cierre forzado cubre todo.                    |
+//|                                                                  |
+//| FAIL-OPEN: si WebRequest falla (timeout, -1, !=200, JSON mal     |
+//| formado), NO cambiar el estado conocido. El bot sigue operando   |
+//| con el ultimo estado valido (o defaults si nunca fetch OK).      |
+//|                                                                  |
+//| Default permisivo: si botEnabled no esta en el JSON -> true.     |
+//|                                                                  |
+//| Idempotencia: enforcementDone evita cerrar dos veces. Solo aplica|
+//| a killSwitch; botEnabled=false no dispara enforcement.           |
+//|                                                                  |
+//| Logging: solo en transiciones. Polls exitosos sin cambio son     |
+//| silenciosos.                                                     |
 //+------------------------------------------------------------------+
 #ifndef KILLSWITCH_MQH
 #define KILLSWITCH_MQH
@@ -35,23 +43,35 @@ string          s_ksApiKey = "";
 
 void KillSwitch_Init()
 {
-   s_ks.active           = false;
-   s_ks.botEnabled       = true;
-   s_ks.lastCheckAt      = 0;
-   s_ks.lastSuccessAt    = 0;
-   s_ks.activatedAt      = 0;
-   s_ks.enforcementDone  = false;
-   s_ks.activeReason     = "";
+   s_ks.killSwitchActive      = false;
+   s_ks.botEnabled            = true;
+   s_ks.lastCheckAt           = 0;
+   s_ks.lastSuccessAt         = 0;
+   s_ks.killSwitchActivatedAt = 0;
+   s_ks.enforcementDone       = false;
 }
 
 void KillSwitch_SetApiKey(string key) { s_ksApiKey = key; }
 
-bool KillSwitch_IsActive() { return s_ks.active; }
+// Emergencia activa? (true = boton rojo apretado)
+bool KillSwitch_IsEmergency() { return s_ks.killSwitchActive; }
 
-string KillSwitch_GetReason() { return s_ks.activeReason; }
+// Bot habilitado para operar nuevas entradas? (false = emergencia O apagado).
+bool KillSwitch_IsBotEnabled()
+{
+   if(s_ks.killSwitchActive) return false;   // emergencia bloquea todo
+   return s_ks.botEnabled;
+}
+
+// Consultada por Execution_OpenFromSizing para decidir si abrir nuevas.
+bool KillSwitch_AllowsNewEntries() { return KillSwitch_IsBotEnabled(); }
+
+// Alias retrocompatible: cuando alguien hable de "kill switch activo" se
+// refiere a la emergencia (no al apagado progresivo).
+bool KillSwitch_IsActive() { return KillSwitch_IsEmergency(); }
 
 // Poll al endpoint si paso el intervalo. Llamado en cada tick desde GioBot;
-// internamente respeta el intervalo de 30s asi que es safe.
+// internamente respeta el intervalo de 30s asi que es safe llamarlo siempre.
 void KillSwitch_Poll()
 {
    if(TimeCurrent() - s_ks.lastCheckAt < KILLSWITCH_POLL_INTERVAL_SECONDS) return;
@@ -59,8 +79,7 @@ void KillSwitch_Poll()
 
    if(StringLen(s_ksApiKey) == 0)
    {
-      // Sin key, fail-open silencioso (ya advertimos en OnInit).
-      return;
+      return;   // sin key, fail-open silencioso (ya advertimos en OnInit)
    }
 
    string url     = KILLSWITCH_API_ENDPOINT;
@@ -79,8 +98,9 @@ void KillSwitch_Poll()
       string hint = (err == 4060
                      ? " - URL no autorizada en MT5 (Tools > Options > Expert Advisors)"
                      : "");
-      Print("[KILLSWITCH] WebRequest fallo. Error: ", err, hint, " | fail-open: bot sigue operando");
-      return;  // fail-open
+      Print("[KILLSWITCH] WebRequest fallo. Error: ", err, hint,
+            " | fail-open: bot sigue operando");
+      return;
    }
 
    if(code != 200)
@@ -89,30 +109,30 @@ void KillSwitch_Poll()
       Print("[KILLSWITCH] Endpoint retorno HTTP ", code,
             " | body[0..120]=", StringSubstr(body, 0, 120),
             " | fail-open: bot sigue operando");
-      return;  // fail-open
+      return;
    }
 
    string body = CharArrayToString(resBuf);
 
-   // Shape: {"killSwitch":bool,"botEnabled":bool}
-   bool killOn = false;
-   bool botOn  = true;
-
+   // === Parsear killSwitch (campo critico - sin el no actualizamos nada) ===
    int posKill = StringFind(body, "\"killSwitch\"");
    if(posKill < 0)
    {
-      Print("[KILLSWITCH] JSON sin campo killSwitch | body[0..120]=", StringSubstr(body, 0, 120),
-            " | fail-open");
+      Print("[KILLSWITCH] JSON sin campo killSwitch | body[0..120]=",
+            StringSubstr(body, 0, 120), " | fail-open");
       return;
    }
+   bool newKillSwitch = false;
    int colonKill = StringFind(body, ":", posKill);
    if(colonKill >= 0)
    {
       string after = StringSubstr(body, colonKill + 1, 16);
       StringTrimLeft(after);
-      killOn = (StringFind(after, "true") == 0);
+      newKillSwitch = (StringFind(after, "true") == 0);
    }
 
+   // === Parsear botEnabled (default true si no existe - permisivo) ===
+   bool newBotEnabled = true;
    int posEnabled = StringFind(body, "\"botEnabled\"");
    if(posEnabled >= 0)
    {
@@ -121,41 +141,52 @@ void KillSwitch_Poll()
       {
          string afterEn = StringSubstr(body, colonEn + 1, 16);
          StringTrimLeft(afterEn);
-         botOn = (StringFind(afterEn, "true") == 0);
+         newBotEnabled = !(StringFind(afterEn, "false") == 0);
       }
    }
 
-   bool wasActive    = s_ks.active;
-   bool wasBotEnabled = s_ks.botEnabled;
+   bool wasKS = s_ks.killSwitchActive;
+   bool wasBE = s_ks.botEnabled;
 
-   s_ks.botEnabled    = botOn;
-   s_ks.active        = (killOn || !botOn);
-   s_ks.lastSuccessAt = TimeCurrent();
-   s_ks.activeReason  = (killOn ? "KILL_SWITCH"
-                                : (!botOn ? "BOT_DISABLED" : ""));
+   s_ks.killSwitchActive = newKillSwitch;
+   s_ks.botEnabled       = newBotEnabled;
+   s_ks.lastSuccessAt    = TimeCurrent();
 
-   if(s_ks.active && !wasActive)
+   // === Transiciones del killSwitch (emergencia) ===
+   if(newKillSwitch && !wasKS)
    {
-      s_ks.activatedAt     = TimeCurrent();
-      s_ks.enforcementDone = false;  // se ejecutara enforcement en el proximo EnforceIfActive
+      s_ks.killSwitchActivatedAt = TimeCurrent();
+      s_ks.enforcementDone       = false;
       Print("==========================================");
-      Print("[KILLSWITCH] ACTIVADO REMOTAMENTE | razon=", s_ks.activeReason,
-            " | cerrando posiciones y cancelando pendings");
+      Print("[KILLSWITCH] EMERGENCIA ACTIVADA | cerrando todo (posiciones + pendings)");
       Print("==========================================");
    }
-   else if(!s_ks.active && wasActive)
+   else if(!newKillSwitch && wasKS)
    {
-      Print("[KILLSWITCH] DESACTIVADO | bot vuelve a operacion normal");
-      s_ks.enforcementDone = false;  // reset para futura reactivacion
-      s_ks.activatedAt     = 0;
+      s_ks.killSwitchActivatedAt = 0;
+      s_ks.enforcementDone       = false;
+      Print("[KILLSWITCH] Emergencia desactivada | bot vuelve a operacion normal",
+            (!newBotEnabled ? " (botEnabled=false sigue bloqueando nuevas entradas)" : ""));
+   }
+
+   // === Transiciones de botEnabled (apagado progresivo) ===
+   // Solo loggear si killSwitch NO esta activo (sino su log ya cubre el caso).
+   if(!newKillSwitch)
+   {
+      if(!newBotEnabled && wasBE)
+         Print("[KILLSWITCH] Bot DESHABILITADO (apagado progresivo)",
+               " | posiciones abiertas siguen gestion normal | no se abriran nuevas");
+      else if(newBotEnabled && !wasBE)
+         Print("[KILLSWITCH] Bot HABILITADO | nuevas entradas permitidas");
    }
 }
 
-// Si el kill switch acaba de activarse, cerrar TODO lo del bot. Idempotente.
+// Cierre masivo. Solo dispara con killSwitchActive=true. Idempotente vía
+// enforcementDone (reseteado al volver killSwitch a false).
 void KillSwitch_EnforceIfActive()
 {
-   if(!s_ks.active) return;
-   if(s_ks.enforcementDone) return;
+   if(!s_ks.killSwitchActive) return;
+   if(s_ks.enforcementDone)   return;
 
    CTrade trade;
    trade.SetExpertMagicNumber(BOT_MAGIC_NUMBER);
@@ -180,7 +211,8 @@ void KillSwitch_EnforceIfActive()
       else
       {
          Print("[KILLSWITCH] Fallo cerrar ticket=", ticket,
-               " code=", trade.ResultRetcode(), " ", trade.ResultRetcodeDescription());
+               " code=", trade.ResultRetcode(), " ",
+               trade.ResultRetcodeDescription());
       }
    }
 

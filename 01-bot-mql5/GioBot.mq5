@@ -96,9 +96,12 @@ void OnTick()
 {
    // --- Modulo 12: kill switch (prioridad maxima) ---
    // Poll respeta su propio intervalo (30s); llamarlo en cada tick es safe.
+   //   - killSwitch=true  -> emergencia: bot dormido completo (early return)
+   //   - botEnabled=false -> apagado progresivo: NO early return; Management
+   //     sigue gestionando lo abierto. Execution rechazara nuevas entradas.
    KillSwitch_Poll();
    KillSwitch_EnforceIfActive();
-   if(KillSwitch_IsActive()) return;   // Bot dormido mientras kill switch ON
+   if(KillSwitch_IsEmergency()) return;
 
    // --- Modulo 9: gestion de posiciones (cada tick para reaccion rapida) ---
    Management_Process();

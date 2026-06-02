@@ -414,16 +414,17 @@ struct NewsEvent
 #define NEWS_CACHE_MAX_AGE_SECONDS    43200   // 12 horas (modo conservador si excede)
 #define NEWS_WEBREQUEST_TIMEOUT_MS    5000
 
-// Kill Switch (Modulo 12): polling al journal, cierre forzado si flag ON.
+// Kill Switch (Modulo 12): polling al journal con DOS flags separados:
+//   killSwitchActive (emergencia) -> cerrar todo + bloquear nuevas
+//   botEnabled (apagado progresivo) -> solo bloquear nuevas (las abiertas siguen)
 struct KillSwitchState
 {
-   bool      active;            // Estado actual percibido (true = bot dormido)
-   bool      botEnabled;        // Flag complementario del journal (false = tambien parar)
+   bool      killSwitchActive;        // Emergencia (boton rojo)
+   bool      botEnabled;              // true = bot habilitado para abrir nuevas
    datetime  lastCheckAt;
    datetime  lastSuccessAt;
-   datetime  activatedAt;       // Cuando se detecto active=true por primera vez
-   bool      enforcementDone;   // true si ya se ejecuto cierre masivo en esta activacion
-   string    activeReason;      // "KILL_SWITCH" / "BOT_DISABLED" para el log
+   datetime  killSwitchActivatedAt;   // Cuando killSwitch paso a true
+   bool      enforcementDone;         // true si ya se ejecuto el cierre masivo
 };
 
 #define KILLSWITCH_API_ENDPOINT           "https://giotradingbot-system.vercel.app/api/bot/kill-switch"

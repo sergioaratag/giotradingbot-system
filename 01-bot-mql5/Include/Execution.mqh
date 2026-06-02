@@ -291,14 +291,21 @@ TradeOpenResult Execution_OpenFromSizing(TradeSetup &setup, SizingResult &sizing
    r.tp              = 0.0;
    r.comment         = "";
 
-   // 0) Modulo 12: kill switch bloquea aperturas (defensa en profundidad;
-   // OnTick ya hace early return, pero por si alguien llama esta funcion
-   // por otra via).
-   if(KillSwitch_IsActive())
+   // 0) Modulo 12: dos flags remotos.
+   //    - killSwitch=true  -> emergencia (OnTick ya hizo early return; check
+   //      aqui es defensa en profundidad si alguien llama directo).
+   //    - botEnabled=false -> apagado progresivo: bloquea aperturas pero NO
+   //      hace early return en OnTick (Management sigue gestionando).
+   if(KillSwitch_IsEmergency())
    {
       r.result          = TRADE_REJECTED_FILTER;
-      r.rejectionReason = StringFormat("Kill switch ACTIVO (%s) - operacion bloqueada",
-                                       KillSwitch_GetReason());
+      r.rejectionReason = "Kill switch EMERGENCIA - operacion bloqueada";
+      return r;
+   }
+   if(!KillSwitch_AllowsNewEntries())
+   {
+      r.result          = TRADE_REJECTED_FILTER;
+      r.rejectionReason = "Bot deshabilitado (botEnabled=false) - no se abren nuevas posiciones";
       return r;
    }
 
