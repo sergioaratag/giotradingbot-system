@@ -47,9 +47,15 @@ export async function POST(req: Request) {
     ? body.confluences.map(String).filter(Boolean)
     : [];
 
+  const mt5Ticket =
+    body.mt5Ticket != null && Number.isFinite(Number(body.mt5Ticket))
+      ? Number(body.mt5Ticket)
+      : null;
+
   const trade = await prisma.trade.create({
     data: {
       userId: user.id,
+      mt5Ticket,
       source: "BOT",
       pair,
       direction,
@@ -75,5 +81,8 @@ export async function POST(req: Request) {
     },
   });
 
-  return NextResponse.json({ ok: true, tradeId: trade.id }, { status: 201 });
+  return NextResponse.json(
+    { ok: true, tradeId: trade.id, mt5Ticket: trade.mt5Ticket },
+    { status: 201 },
+  );
 }

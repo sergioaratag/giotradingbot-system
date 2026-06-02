@@ -52,6 +52,8 @@ model Trade {
   userId          String
   user            User     @relation(fields: [userId], references: [id])
 
+  mt5Ticket       Int?     @unique  // Ticket de MT5 (set por el bot al crear). Nullable en trades MANUAL.
+
   source          TradeSource
   pair            String
   direction       TradeDirection
@@ -221,7 +223,9 @@ enum BiasHTF {
 
 enum SessionType {
   LONDON
+  LONDON_KZ
   NY_AM
+  NY_LUNCH
   NY_PM
   OUTSIDE
 }

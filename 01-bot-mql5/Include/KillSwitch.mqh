@@ -33,7 +33,14 @@
 #define KILLSWITCH_MQH
 
 #include <Common.mqh>
+#include <Journal.mqh>
 #include <Trade/Trade.mqh>
+
+// Forward decls (definidas en Management.mqh, que se incluye DESPUES de
+// KillSwitch.mqh en GioBot.mq5). El call solo se invoca en runtime asi que
+// el linker resuelve sin problema.
+void Management_MarkCloseReported(ulong ticket, ENUM_CLOSE_REASON reason);
+void Management_FetchCloseInfo(ulong positionId, double &closePrice, double &pnlUSD);
 
 //============================ STORAGE ===============================
 KillSwitchState s_ks;
@@ -203,10 +210,21 @@ void KillSwitch_EnforceIfActive()
       if((long)PositionGetInteger(POSITION_MAGIC) != BOT_MAGIC_NUMBER) continue;
 
       string sym = PositionGetString(POSITION_SYMBOL);
+
+      // Modulo 13: marcar reportado ANTES del close para que Management no
+      // doble-postee al detectar el cierre externo.
+      Management_MarkCloseReported(ticket, CLOSE_REASON_KILL_SWITCH);
+
       if(trade.PositionClose(ticket))
       {
          closed++;
          Print("[KILLSWITCH] Cerrada posicion ticket=", ticket, " | ", sym);
+
+         double cp = 0.0, pnl = 0.0;
+         Management_FetchCloseInfo(ticket, cp, pnl);
+         // rAchieved no calculable aqui sin slDistance original; mandamos 0.
+         Journal_PostTradeClosed(ticket, sym, CLOSE_REASON_KILL_SWITCH,
+                                 cp, pnl, 0.0);
       }
       else
       {

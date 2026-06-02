@@ -21,7 +21,12 @@
 #include <Common.mqh>
 #include <Liquidity.mqh>   // GMTToNY
 #include <News.mqh>
+#include <Journal.mqh>
 #include <Trade/Trade.mqh>
+
+// Forward decls (definidas en Management.mqh, incluido despues en GioBot).
+void Management_MarkCloseReported(ulong ticket, ENUM_CLOSE_REASON reason);
+void Management_FetchCloseInfo(ulong positionId, double &closePrice, double &pnlUSD);
 
 //============================ HELPERS PRIVADOS ======================
 
@@ -201,11 +206,24 @@ void Filters_EnforceFridayClosing()
       if((long)PositionGetInteger(POSITION_MAGIC) != BOT_MAGIC_NUMBER) continue;
 
       string sym = PositionGetString(POSITION_SYMBOL);
+
+      // Modulo 13: marcar antes del close. Usamos KILL_SWITCH como enum (no
+      // hay FRIDAY_FORCE en el enum) PERO el post va con string literal
+      // "FRIDAY_FORCE" via PostTradeClosedRaw para que la web lo distinga.
+      Management_MarkCloseReported(ticket, CLOSE_REASON_KILL_SWITCH);
+
       if(trade.PositionClose(ticket))
+      {
          Print("[FILTERS] Cierre forzado viernes 16:00 NY | Ticket: ", ticket, " | ", sym);
+         double cp = 0.0, pnl = 0.0;
+         Management_FetchCloseInfo(ticket, cp, pnl);
+         Journal_PostTradeClosedRaw(ticket, sym, "FRIDAY_FORCE", cp, pnl, 0.0);
+      }
       else
+      {
          Print("[FILTERS] Fallo cierre forzado ticket=", ticket,
                " code=", trade.ResultRetcode(), " ", trade.ResultRetcodeDescription());
+      }
    }
 
    // 2) Cancelar pendings del bot

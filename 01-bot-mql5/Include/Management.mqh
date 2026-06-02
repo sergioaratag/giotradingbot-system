@@ -30,6 +30,7 @@
 #include <Common.mqh>
 #include <Structure.mqh>
 #include <News.mqh>
+#include <Journal.mqh>
 #include <Trade/Trade.mqh>
 
 //============================ STORAGE ===============================
@@ -74,11 +75,51 @@ int Management_FindOrInitIdx(ulong ticket, string symbol,
    s_positions[n].rLevelReached = 0;
    s_positions[n].openedAt      = (datetime)PositionGetInteger(POSITION_TIME);
    s_positions[n].lastSLUpdate  = 0;
+   s_positions[n].closeReported = false;
+   s_positions[n].closeReason   = CLOSE_REASON_SL_HIT;
    return n;
 }
 
+// Helper publico para que KillSwitch/Filters marquen un cierre antes de
+// invocar trade.PositionClose. Asi el housekeeping NO doble-postea.
+void Management_MarkCloseReported(ulong ticket, ENUM_CLOSE_REASON reason)
+{
+   int idx = Management_FindIdx(ticket);
+   if(idx < 0) return;
+   s_positions[idx].closeReported = true;
+   s_positions[idx].closeReason   = reason;
+}
+
+// Lee el deal de cierre asociado a la posicion (PositionId == ticket) y
+// devuelve closePrice + pnlNeto. Si no encuentra deal, ambos quedan en 0.
+void Management_FetchCloseInfo(ulong positionId, double &closePrice, double &pnlUSD)
+{
+   closePrice = 0.0;
+   pnlUSD     = 0.0;
+   if(!HistorySelectByPosition(positionId)) return;
+
+   int deals = HistoryDealsTotal();
+   for(int d = deals - 1; d >= 0; d--)
+   {
+      ulong dt = HistoryDealGetTicket(d);
+      if(dt == 0) continue;
+      if((int)HistoryDealGetInteger(dt, DEAL_ENTRY) != DEAL_ENTRY_OUT) continue;
+
+      closePrice = HistoryDealGetDouble(dt, DEAL_PRICE);
+      pnlUSD     = HistoryDealGetDouble(dt, DEAL_PROFIT)
+                 + HistoryDealGetDouble(dt, DEAL_SWAP)
+                 + HistoryDealGetDouble(dt, DEAL_COMMISSION);
+      return;
+   }
+}
+
 // Elimina del array las posiciones que ya no existen en MT5 (cerradas por
-// SL, CHoCH, news, cierre manual, etc).
+// SL, CHoCH, news, cierre manual, etc). Modulo 13: postea TRADE_CLOSED al
+// journal:
+//   - Si closeReported=true (alguien marco antes de cerrar) -> ya posteo
+//     quien cerro, no doble-posteamos.
+//   - Si closeReported=false -> el broker cerro (SL hit / cierre manual);
+//     posteamos con la razon almacenada (default SL_HIT).
 void Management_PurgeClosedTickets()
 {
    int n = ArraySize(s_positions);
@@ -95,8 +136,26 @@ void Management_PurgeClosedTickets()
       }
       else
       {
-         Management_LogAction(s_positions[i].ticket, "CLOSED",
+         ulong ticket = s_positions[i].ticket;
+         Management_LogAction(ticket, "CLOSED",
                               "Posicion ya no existe (SL hit / cierre externo)");
+
+         if(!s_positions[i].closeReported)
+         {
+            double closePrice = 0.0, pnlUSD = 0.0;
+            Management_FetchCloseInfo(ticket, closePrice, pnlUSD);
+            double rAchieved = 0.0;
+            if(s_positions[i].slDistance > 0.0)
+            {
+               double pnlPrice = (s_positions[i].direction == DIR_BULLISH
+                                  ? closePrice - s_positions[i].entryPrice
+                                  : s_positions[i].entryPrice - closePrice);
+               rAchieved = pnlPrice / s_positions[i].slDistance;
+            }
+            Journal_PostTradeClosed(ticket, s_positions[i].symbol,
+                                    s_positions[i].closeReason,  // default SL_HIT
+                                    closePrice, pnlUSD, rAchieved);
+         }
       }
    }
 
@@ -177,14 +236,36 @@ void Management_Process()
 
          if(slInProfitOrBE)
          {
+            // Modulo 13: marcar antes de cerrar para que el housekeeping no
+            // doble-postee. El POST al journal lo hacemos despues con el
+            // closePrice real del deal.
+            s_positions[idx].closeReported = true;
+            s_positions[idx].closeReason   = CLOSE_REASON_NEWS_HIGH;
+
             if(trade.PositionClose(ticket))
+            {
                Management_LogAction(ticket, "CLOSED_BY_NEWS",
                                     "SL en BE+, cerrado por noticia HIGH inminente");
+               double cp = 0.0, pnl = 0.0;
+               Management_FetchCloseInfo(ticket, cp, pnl);
+               double rAch = (s_positions[idx].slDistance > 0
+                              ? (direction == DIR_BULLISH
+                                 ? cp - entryPrice
+                                 : entryPrice - cp) / s_positions[idx].slDistance
+                              : 0.0);
+               Journal_PostTradeClosed(ticket, symbol, CLOSE_REASON_NEWS_HIGH,
+                                       cp, pnl, rAch);
+            }
             else
+            {
+               // Falla al cerrar: revertir el flag, asi housekeeping podra
+               // intentar postear en el proximo tick.
+               s_positions[idx].closeReported = false;
                Management_LogAction(ticket, "CLOSE_FAILED",
                                     StringFormat("news close: code=%d %s",
                                                  trade.ResultRetcode(),
                                                  trade.ResultRetcodeDescription()));
+            }
             continue;
          }
          // Si SL aun en perdida, dejar correr: peor de los casos es el SL inicial.
@@ -197,14 +278,31 @@ void Management_Process()
       if(Structure_HasEventSince(symbol, MGMT_CHOCH_TF,
                                  contraryEvent, s_positions[idx].openedAt))
       {
+         s_positions[idx].closeReported = true;
+         s_positions[idx].closeReason   = CLOSE_REASON_CHOCH_CONTRARY;
+
          if(trade.PositionClose(ticket))
+         {
             Management_LogAction(ticket, "CLOSED_BY_CHOCH",
                                  "CHoCH contrario detectado en M5");
+            double cp = 0.0, pnl = 0.0;
+            Management_FetchCloseInfo(ticket, cp, pnl);
+            double rAch = (s_positions[idx].slDistance > 0
+                           ? (direction == DIR_BULLISH
+                              ? cp - entryPrice
+                              : entryPrice - cp) / s_positions[idx].slDistance
+                           : 0.0);
+            Journal_PostTradeClosed(ticket, symbol, CLOSE_REASON_CHOCH_CONTRARY,
+                                    cp, pnl, rAch);
+         }
          else
+         {
+            s_positions[idx].closeReported = false;
             Management_LogAction(ticket, "CLOSE_FAILED",
                                  StringFormat("choch close: code=%d %s",
                                               trade.ResultRetcode(),
                                               trade.ResultRetcodeDescription()));
+         }
          continue;
       }
 
@@ -249,6 +347,9 @@ void Management_Process()
                Management_LogAction(ticket, "SL_MOVED",
                   StringFormat("Alcanzo %dR. SL movido a %s + buffer (%.5f)",
                                newRLevel, ref, newSL));
+
+               // Modulo 13: postear SL_MOVED al journal (fire-and-forget).
+               Journal_PostSLMoved(ticket, symbol, newSL, newRLevel);
             }
             else
             {

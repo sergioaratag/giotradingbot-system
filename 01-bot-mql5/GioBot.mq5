@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Sergio Arata"
 #property link      "https://giotradingbot-system.vercel.app"
-#property version   "0.21"
+#property version   "0.22"
 #property strict
 
 #include <Common.mqh>
@@ -15,6 +15,7 @@
 #include <Structure.mqh>
 #include <Bias.mqh>
 #include <Sizing.mqh>
+#include <Journal.mqh>
 #include <News.mqh>
 #include <KillSwitch.mqh>
 #include <Filters.mqh>
@@ -46,6 +47,8 @@ int OnInit()
    Structure_Init();
    Bias_Init();
    Sizing_Init();
+   Journal_Init();
+   Journal_SetApiKey(BotApiKey);
    News_Init();
    News_SetApiKey(BotApiKey);
    KillSwitch_Init();
@@ -63,13 +66,14 @@ int OnInit()
    KillSwitch_Poll();
    KillSwitch_EnforceIfActive();
 
-   Print("GioBot v0.21 inicializado. Modulos: Liquidity + Sweep + FVG + Structure + Bias + Sizing + News + KillSwitch + Filters + Execution + Setup + Management.");
+   Print("GioBot v0.22 inicializado. Modulos: Liquidity + Sweep + FVG + Structure + Bias + Sizing + Journal + News + KillSwitch + Filters + Execution + Setup + Management.");
    Print("Modulo News cargado. Endpoint: ", NEWS_API_ENDPOINT,
          " | Cache confiable: ", (News_CanQueryReliably() ? "SI" : "NO"));
    Print("Modulo KillSwitch cargado. Polling cada ", KILLSWITCH_POLL_INTERVAL_SECONDS,
          "s | Estado inicial: ", (KillSwitch_IsActive() ? "ACTIVO" : "OFF"));
+   Print("Modulo Journal cargado. POSTs fire-and-forget a /api/bot/trade, /sl-moved, /closed, /setup-rejected");
    if(StringLen(BotApiKey) == 0)
-      Print("[WARN] Input BotApiKey vacio - News y KillSwitch fallaran. Configurar antes de operar.");
+      Print("[WARN] Input BotApiKey vacio - News, KillSwitch y Journal fallaran. Configurar antes de operar.");
    Print("Simbolos: ", Symbol1, ", ", Symbol2, " | Verbose: ", (VerboseLogging ? "ON" : "OFF"));
    return(INIT_SUCCEEDED);
 }

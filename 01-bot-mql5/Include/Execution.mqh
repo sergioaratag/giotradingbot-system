@@ -30,6 +30,7 @@
 #include <Sizing.mqh>
 #include <Filters.mqh>
 #include <KillSwitch.mqh>
+#include <Journal.mqh>
 #include <Trade/Trade.mqh>
 
 //============================ HELPERS PRIVADOS ======================
@@ -300,12 +301,14 @@ TradeOpenResult Execution_OpenFromSizing(TradeSetup &setup, SizingResult &sizing
    {
       r.result          = TRADE_REJECTED_FILTER;
       r.rejectionReason = "Kill switch EMERGENCIA - operacion bloqueada";
+      Journal_PostSetupRejected(setup, sizing, r.rejectionReason);
       return r;
    }
    if(!KillSwitch_AllowsNewEntries())
    {
       r.result          = TRADE_REJECTED_FILTER;
       r.rejectionReason = "Bot deshabilitado (botEnabled=false) - no se abren nuevas posiciones";
+      Journal_PostSetupRejected(setup, sizing, r.rejectionReason);
       return r;
    }
 
@@ -314,6 +317,7 @@ TradeOpenResult Execution_OpenFromSizing(TradeSetup &setup, SizingResult &sizing
    {
       r.result          = TRADE_INVALID_SIZING;
       r.rejectionReason = sizing.rejectionReason;
+      Journal_PostSetupRejected(setup, sizing, r.rejectionReason);
       return r;
    }
 
@@ -324,6 +328,7 @@ TradeOpenResult Execution_OpenFromSizing(TradeSetup &setup, SizingResult &sizing
       r.result          = TRADE_REJECTED_FILTER;
       r.rejectionReason = filterResult.reason;
       Filters_LogCheck(setup.symbol, filterResult);
+      Journal_PostSetupRejected(setup, sizing, r.rejectionReason);
       return r;
    }
 
@@ -332,6 +337,7 @@ TradeOpenResult Execution_OpenFromSizing(TradeSetup &setup, SizingResult &sizing
    {
       r.result          = TRADE_REJECTED_DAILY;
       r.rejectionReason = "Daily loss -1.5% alcanzado. Bloqueado hasta 07:00 NY del dia siguiente.";
+      Journal_PostSetupRejected(setup, sizing, r.rejectionReason);
       return r;
    }
 
@@ -345,6 +351,7 @@ TradeOpenResult Execution_OpenFromSizing(TradeSetup &setup, SizingResult &sizing
       r.rejectionReason = StringFormat("Cap riesgo: actual %.2f%%, nuevo necesita %.2f%%, queda %.2f%% (minimo %.2f%%)",
                                        currentRisk, sizing.riskEffectivePct,
                                        remainingRisk, (double)SIZING_MIN_RISK_PCT);
+      Journal_PostSetupRejected(setup, sizing, r.rejectionReason);
       return r;
    }
 
@@ -367,6 +374,7 @@ TradeOpenResult Execution_OpenFromSizing(TradeSetup &setup, SizingResult &sizing
       {
          r.result          = TRADE_REJECTED_RISK;
          r.rejectionReason = StringFormat("Lotaje escalado (%.4f) cae bajo VOLUME_MIN=%.2f", effectiveLots, lotMin);
+         Journal_PostSetupRejected(setup, sizing, r.rejectionReason);
          return r;
       }
       effectiveRisk = remainingRisk;
@@ -449,12 +457,17 @@ TradeOpenResult Execution_OpenFromSizing(TradeSetup &setup, SizingResult &sizing
       r.rejectionReason = StringFormat("OrderSend fallo: code=%d, %s",
                                        trade.ResultRetcode(),
                                        trade.ResultRetcodeDescription());
+      Journal_PostSetupRejected(setup, sizing, r.rejectionReason);
       return r;
    }
 
    r.ticket        = trade.ResultOrder();
    r.executedPrice = (useMarket ? trade.ResultPrice() : 0.0);
    r.result        = TRADE_OPENED;
+
+   // Modulo 13: postear TRADE_OPENED al journal Vercel (fire-and-forget).
+   Journal_PostTradeOpened(setup, sizing, r);
+
    return r;
 }
 

@@ -368,6 +368,13 @@ struct PositionState
    int                rLevelReached;    // 0 = aun no 1R; 1 = ya 1R; etc.
    datetime           openedAt;
    datetime           lastSLUpdate;
+
+   // Modulo 13: tracking del TRADE_CLOSED report.
+   // Si el bot cierra explicitamente (CHoCH/news/killswitch/friday) marca true
+   // antes de PositionClose y postea el evento. El housekeeping posterior
+   // detecta el cierre externo (broker hit SL) solo cuando closeReported=false.
+   bool               closeReported;
+   ENUM_CLOSE_REASON  closeReason;
 };
 
 #define MGMT_BUFFER_PIPS           1.0     // Buffer al mover SL (en pips, a favor)
@@ -430,5 +437,13 @@ struct KillSwitchState
 #define KILLSWITCH_API_ENDPOINT           "https://giotradingbot-system.vercel.app/api/bot/kill-switch"
 #define KILLSWITCH_POLL_INTERVAL_SECONDS  30
 #define KILLSWITCH_TIMEOUT_MS             3000   // 3s timeout (fail-open si excede)
+
+// Journal HTTP (Modulo 13): POST eventos del bot al journal Vercel.
+// Fire-and-forget: si falla, log warning y seguir.
+#define JOURNAL_URL_TRADE_OPENED      "https://giotradingbot-system.vercel.app/api/bot/trade"
+#define JOURNAL_URL_TRADE_SL_MOVED    "https://giotradingbot-system.vercel.app/api/bot/trade/sl-moved"
+#define JOURNAL_URL_TRADE_CLOSED      "https://giotradingbot-system.vercel.app/api/bot/trade/closed"
+#define JOURNAL_URL_SETUP_REJECTED    "https://giotradingbot-system.vercel.app/api/bot/setup-rejected"
+#define JOURNAL_TIMEOUT_MS            5000
 
 #endif // COMMON_MQH
