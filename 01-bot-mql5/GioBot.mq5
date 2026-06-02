@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Sergio Arata"
 #property link      "https://giotradingbot-system.vercel.app"
-#property version   "0.20"
+#property version   "0.21"
 #property strict
 
 #include <Common.mqh>
@@ -16,6 +16,7 @@
 #include <Bias.mqh>
 #include <Sizing.mqh>
 #include <News.mqh>
+#include <KillSwitch.mqh>
 #include <Filters.mqh>
 #include <Execution.mqh>
 #include <Setup.mqh>
@@ -47,6 +48,8 @@ int OnInit()
    Sizing_Init();
    News_Init();
    News_SetApiKey(BotApiKey);
+   KillSwitch_Init();
+   KillSwitch_SetApiKey(BotApiKey);
    Filters_Init();
    Execution_Init();
    Setup_Init();
@@ -56,11 +59,17 @@ int OnInit()
    // Fetch inicial de noticias (sincrono). Si falla, Filters bloquea aperturas
    // hasta el siguiente fetch OK (modo conservador).
    News_FetchFromApi();
-   Print("GioBot v0.20 inicializado. Modulos: Liquidity + Sweep + FVG + Structure + Bias + Sizing + News + Filters + Execution + Setup + Management.");
+   // Poll inicial del kill switch (NO bloqueante si falla - fail-open).
+   KillSwitch_Poll();
+   KillSwitch_EnforceIfActive();
+
+   Print("GioBot v0.21 inicializado. Modulos: Liquidity + Sweep + FVG + Structure + Bias + Sizing + News + KillSwitch + Filters + Execution + Setup + Management.");
    Print("Modulo News cargado. Endpoint: ", NEWS_API_ENDPOINT,
          " | Cache confiable: ", (News_CanQueryReliably() ? "SI" : "NO"));
+   Print("Modulo KillSwitch cargado. Polling cada ", KILLSWITCH_POLL_INTERVAL_SECONDS,
+         "s | Estado inicial: ", (KillSwitch_IsActive() ? "ACTIVO" : "OFF"));
    if(StringLen(BotApiKey) == 0)
-      Print("[WARN] Input BotApiKey vacio - News fetch fallara. Configurar antes de operar.");
+      Print("[WARN] Input BotApiKey vacio - News y KillSwitch fallaran. Configurar antes de operar.");
    Print("Simbolos: ", Symbol1, ", ", Symbol2, " | Verbose: ", (VerboseLogging ? "ON" : "OFF"));
    return(INIT_SUCCEEDED);
 }
@@ -85,6 +94,12 @@ void OnDeinit(const int reason)
 //+------------------------------------------------------------------+
 void OnTick()
 {
+   // --- Modulo 12: kill switch (prioridad maxima) ---
+   // Poll respeta su propio intervalo (30s); llamarlo en cada tick es safe.
+   KillSwitch_Poll();
+   KillSwitch_EnforceIfActive();
+   if(KillSwitch_IsActive()) return;   // Bot dormido mientras kill switch ON
+
    // --- Modulo 9: gestion de posiciones (cada tick para reaccion rapida) ---
    Management_Process();
 

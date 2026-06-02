@@ -29,6 +29,7 @@
 #include <Liquidity.mqh>   // GMTToNY / NYToServer / BuildNYDateTime
 #include <Sizing.mqh>
 #include <Filters.mqh>
+#include <KillSwitch.mqh>
 #include <Trade/Trade.mqh>
 
 //============================ HELPERS PRIVADOS ======================
@@ -289,6 +290,17 @@ TradeOpenResult Execution_OpenFromSizing(TradeSetup &setup, SizingResult &sizing
    r.sl              = 0.0;
    r.tp              = 0.0;
    r.comment         = "";
+
+   // 0) Modulo 12: kill switch bloquea aperturas (defensa en profundidad;
+   // OnTick ya hace early return, pero por si alguien llama esta funcion
+   // por otra via).
+   if(KillSwitch_IsActive())
+   {
+      r.result          = TRADE_REJECTED_FILTER;
+      r.rejectionReason = StringFormat("Kill switch ACTIVO (%s) - operacion bloqueada",
+                                       KillSwitch_GetReason());
+      return r;
+   }
 
    // 1) Sizing valido
    if(!sizing.isValid)
