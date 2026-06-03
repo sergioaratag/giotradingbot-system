@@ -54,59 +54,74 @@ export async function POST(req: Request) {
       ? Number(body.mt5Ticket)
       : null;
 
-  const trade = await prisma.trade.create({
-    data: {
-      userId: user.id,
-      mt5Ticket,
-      source: "BOT",
-      pair,
-      direction,
-      qualityRating: isQuality(body.qualityRating) ? body.qualityRating : null,
-      biasHTF:
-        body.biasHTF && ["BULLISH", "BEARISH", "NEUTRAL"].includes(body.biasHTF)
-          ? body.biasHTF
-          : null,
-      killzone: body.killzone ? String(body.killzone) : null,
-      entryPrice,
-      stopLoss,
-      takeProfit1: body.takeProfit1 != null ? Number(body.takeProfit1) : null,
-      takeProfit2: body.takeProfit2 != null ? Number(body.takeProfit2) : null,
-      positionSize: Number(body.positionSize ?? 0),
-      riskPercent: Number(body.riskPercent ?? 0),
-      riskUSD: Number(body.riskUSD ?? 0),
-      entryTime: body.entryTime ? new Date(body.entryTime) : new Date(),
-      preTradeNotes: body.preTradeNotes ? String(body.preTradeNotes) : null,
-      confluences:
-        confluences.length > 0
-          ? { create: confluences.map((conceptKey) => ({ conceptKey })) }
-          : undefined,
-    },
-  });
+  try {
+    const trade = await prisma.trade.create({
+      data: {
+        userId: user.id,
+        mt5Ticket,
+        source: "BOT",
+        pair,
+        direction,
+        qualityRating: isQuality(body.qualityRating) ? body.qualityRating : null,
+        biasHTF:
+          body.biasHTF && ["BULLISH", "BEARISH", "NEUTRAL"].includes(body.biasHTF)
+            ? body.biasHTF
+            : null,
+        killzone: body.killzone ? String(body.killzone) : null,
+        entryPrice,
+        stopLoss,
+        takeProfit1: body.takeProfit1 != null ? Number(body.takeProfit1) : null,
+        takeProfit2: body.takeProfit2 != null ? Number(body.takeProfit2) : null,
+        positionSize: Number(body.positionSize ?? 0),
+        riskPercent: Number(body.riskPercent ?? 0),
+        riskUSD: Number(body.riskUSD ?? 0),
+        entryTime: body.entryTime ? new Date(body.entryTime) : new Date(),
+        preTradeNotes: body.preTradeNotes ? String(body.preTradeNotes) : null,
+        confluences:
+          confluences.length > 0
+            ? { create: confluences.map((conceptKey) => ({ conceptKey })) }
+            : undefined,
+      },
+    });
 
-  // Modulo 14: notificacion Telegram fire-and-forget (con sonido).
-  // NO await: el bot MT5 tiene timeout corto en WebRequest.
-  sendTelegram(
-    formatTradeOpened({
-      mt5Ticket: trade.mt5Ticket ?? "?",
-      pair,
-      direction,
-      qualityRating: trade.qualityRating ?? null,
-      qualityScore:
-        typeof body.qualityScore === "number" ? body.qualityScore : undefined,
-      biasHTF: trade.biasHTF ?? null,
-      killzone: trade.killzone ?? null,
-      entryPrice,
-      stopLoss,
-      positionSize: trade.positionSize,
-      riskPercent: trade.riskPercent,
-      riskUSD: trade.riskUSD,
-      confluences,
-    }),
-    { silent: false },
-  ).catch((e) => console.error("[telegram] TRADE_OPENED:", e));
+    // Modulo 14: notificacion Telegram fire-and-forget (con sonido).
+    // NO await: el bot MT5 tiene timeout corto en WebRequest.
+    sendTelegram(
+      formatTradeOpened({
+        mt5Ticket: trade.mt5Ticket ?? "?",
+        pair,
+        direction,
+        qualityRating: trade.qualityRating ?? null,
+        qualityScore:
+          typeof body.qualityScore === "number" ? body.qualityScore : undefined,
+        biasHTF: trade.biasHTF ?? null,
+        killzone: trade.killzone ?? null,
+        entryPrice,
+        stopLoss,
+        positionSize: trade.positionSize,
+        riskPercent: trade.riskPercent,
+        riskUSD: trade.riskUSD,
+        confluences,
+      }),
+      { silent: false },
+    ).catch((e) => console.error("[telegram] TRADE_OPENED:", e));
 
-  return NextResponse.json(
-    { ok: true, tradeId: trade.id, mt5Ticket: trade.mt5Ticket },
-    { status: 201 },
-  );
+    return NextResponse.json(
+      { ok: true, tradeId: trade.id, mt5Ticket: trade.mt5Ticket },
+      { status: 201 },
+    );
+  } catch (error) {
+    console.error("[POST /api/bot/trade] Error:", error);
+    return NextResponse.json(
+      {
+        ok: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+        stack:
+          process.env.NODE_ENV !== "production" && error instanceof Error
+            ? error.stack
+            : undefined,
+      },
+      { status: 500 },
+    );
+  }
 }
