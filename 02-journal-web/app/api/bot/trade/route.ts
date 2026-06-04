@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import type { TradeDirection, QualityRating } from "@prisma/client";
 import { sendTelegram } from "@/lib/telegram";
@@ -85,26 +85,32 @@ export async function POST(req: Request) {
     });
 
     // Modulo 14: notificacion Telegram fire-and-forget (con sonido).
-    // NO await: el bot MT5 tiene timeout corto en WebRequest.
-    sendTelegram(
-      formatTradeOpened({
-        mt5Ticket: trade.mt5Ticket ?? "?",
-        pair,
-        direction,
-        qualityRating: trade.qualityRating ?? null,
-        qualityScore:
-          typeof body.qualityScore === "number" ? body.qualityScore : undefined,
-        biasHTF: trade.biasHTF ?? null,
-        killzone: trade.killzone ?? null,
-        entryPrice,
-        stopLoss,
-        positionSize: trade.positionSize,
-        riskPercent: trade.riskPercent,
-        riskUSD: trade.riskUSD,
-        confluences,
-      }),
-      { silent: false },
-    ).catch((e) => console.error("[telegram] TRADE_OPENED:", e));
+    // Se difiere con after() para que el fetch a Telegram complete DESPUES de
+    // enviar el 201 sin bloquear al bot. En serverless un promise sin await ni
+    // after() se descarta al congelarse la instancia (= "No outgoing requests").
+    after(() =>
+      sendTelegram(
+        formatTradeOpened({
+          mt5Ticket: trade.mt5Ticket ?? "?",
+          pair,
+          direction,
+          qualityRating: trade.qualityRating ?? null,
+          qualityScore:
+            typeof body.qualityScore === "number"
+              ? body.qualityScore
+              : undefined,
+          biasHTF: trade.biasHTF ?? null,
+          killzone: trade.killzone ?? null,
+          entryPrice,
+          stopLoss,
+          positionSize: trade.positionSize,
+          riskPercent: trade.riskPercent,
+          riskUSD: trade.riskUSD,
+          confluences,
+        }),
+        { silent: false },
+      ).catch((e) => console.error("[telegram] TRADE_OPENED:", e)),
+    );
 
     return NextResponse.json(
       { ok: true, tradeId: trade.id, mt5Ticket: trade.mt5Ticket },
