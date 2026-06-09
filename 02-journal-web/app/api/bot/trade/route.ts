@@ -4,6 +4,7 @@ import type { TradeDirection, QualityRating } from "@prisma/client";
 import { sendTelegram } from "@/lib/telegram";
 import { formatTradeOpened } from "@/lib/telegram-messages";
 import { logBotRequest } from "@/lib/bot-telemetry";
+import { parseMt5Ticket } from "@/lib/mt5-ticket";
 
 const DIRECTIONS = ["LONG", "SHORT"] as const;
 const QUALITIES = ["HIGH", "MEDIUM", "LOW"] as const;
@@ -30,17 +31,14 @@ export async function POST(req: Request) {
   const entryPrice = Number(body.entryPrice);
   const stopLoss = Number(body.stopLoss);
 
-  const mt5Ticket =
-    body.mt5Ticket != null && Number.isFinite(Number(body.mt5Ticket))
-      ? Number(body.mt5Ticket)
-      : null;
+  const mt5Ticket = parseMt5Ticket(body.mt5Ticket);
 
   if (!pair || !direction || !Number.isFinite(entryPrice) || !Number.isFinite(stopLoss)) {
     logBotRequest({
       endpoint: "/api/bot/trade",
       authOk: true,
       result: "validation_failed",
-      payload: { pair, direction, mt5Ticket },
+      payload: { pair, direction, mt5Ticket: mt5Ticket?.toString() ?? null },
     });
     return NextResponse.json(
       { error: "pair, direction, entryPrice, stopLoss required" },
@@ -58,10 +56,10 @@ export async function POST(req: Request) {
         endpoint: "/api/bot/trade",
         authOk: true,
         result: "duplicate",
-        payload: { pair, direction, mt5Ticket },
+        payload: { pair, direction, mt5Ticket: mt5Ticket.toString() },
       });
       return NextResponse.json(
-        { ok: true, alreadyExists: true, tradeId: existing.id, mt5Ticket },
+        { ok: true, alreadyExists: true, tradeId: existing.id, mt5Ticket: mt5Ticket.toString() },
         { status: 200 },
       );
     }
@@ -118,7 +116,7 @@ export async function POST(req: Request) {
     after(() =>
       sendTelegram(
         formatTradeOpened({
-          mt5Ticket: trade.mt5Ticket ?? "?",
+          mt5Ticket: trade.mt5Ticket?.toString() ?? "?",
           pair,
           direction,
           qualityRating: trade.qualityRating ?? null,
@@ -143,10 +141,10 @@ export async function POST(req: Request) {
       endpoint: "/api/bot/trade",
       authOk: true,
       result: "success",
-      payload: { pair, direction, mt5Ticket: trade.mt5Ticket },
+      payload: { pair, direction, mt5Ticket: trade.mt5Ticket?.toString() ?? null },
     });
     return NextResponse.json(
-      { ok: true, tradeId: trade.id, mt5Ticket: trade.mt5Ticket },
+      { ok: true, tradeId: trade.id, mt5Ticket: trade.mt5Ticket?.toString() ?? null },
       { status: 201 },
     );
   } catch (error) {
@@ -155,7 +153,7 @@ export async function POST(req: Request) {
       endpoint: "/api/bot/trade",
       authOk: true,
       result: "db_error",
-      payload: { pair, direction, mt5Ticket },
+      payload: { pair, direction, mt5Ticket: mt5Ticket?.toString() ?? null },
     });
     return NextResponse.json(
       {

@@ -52,7 +52,7 @@ model Trade {
   userId          String
   user            User     @relation(fields: [userId], references: [id])
 
-  mt5Ticket       Int?     @unique  // Ticket de MT5 (set por el bot al crear). Nullable en trades MANUAL.
+  mt5Ticket       BigInt?  @unique  // Ticket de MT5 (set por el bot al crear). Nullable en trades MANUAL. BigInt: tickets reales ~9e9 desbordan INT4.
 
   source          TradeSource
   pair            String

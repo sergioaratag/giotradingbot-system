@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { sendTelegram } from "@/lib/telegram";
 import { formatSLMoved } from "@/lib/telegram-messages";
 import { logBotRequest } from "@/lib/bot-telemetry";
+import { parseMt5Ticket } from "@/lib/mt5-ticket";
 
 export const dynamic = "force-dynamic";
 
@@ -20,13 +21,13 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json().catch(() => ({}));
-  const mt5Ticket = Number(body.mt5Ticket);
+  const mt5Ticket = parseMt5Ticket(body.mt5Ticket);
   const pair = String(body.pair ?? "").trim();
   const newSL = Number(body.newSL);
   const rLevelReached = Number(body.rLevelReached);
 
   if (
-    !Number.isFinite(mt5Ticket) ||
+    mt5Ticket == null ||
     !pair ||
     !Number.isFinite(newSL) ||
     !Number.isFinite(rLevelReached)
@@ -35,7 +36,7 @@ export async function POST(req: Request) {
       endpoint: "/api/bot/trade/sl-moved",
       authOk: true,
       result: "validation_failed",
-      payload: { pair, mt5Ticket },
+      payload: { pair, mt5Ticket: mt5Ticket?.toString() ?? null },
     });
     return NextResponse.json(
       { error: "mt5Ticket, pair, newSL, rLevelReached required" },
@@ -61,14 +62,14 @@ export async function POST(req: Request) {
       type: "SL_MOVED",
       pair,
       message: `SL trailed to R=${rLevelReached} @ ${newSL}`,
-      metadata: { mt5Ticket, newSL, rLevelReached, tradeFound: updated },
+      metadata: { mt5Ticket: mt5Ticket.toString(), newSL, rLevelReached, tradeFound: updated },
     },
   });
 
   // Modulo 14: notificacion Telegram (silenciosa, sin sonido).
   // after() difiere el fetch hasta despues de la respuesta sin descartarlo.
   after(() =>
-    sendTelegram(formatSLMoved({ mt5Ticket, pair, newSL, rLevelReached }), {
+    sendTelegram(formatSLMoved({ mt5Ticket: mt5Ticket.toString(), pair, newSL, rLevelReached }), {
       silent: true,
     }).catch((e) => console.error("[telegram] SL_MOVED:", e)),
   );
@@ -77,7 +78,7 @@ export async function POST(req: Request) {
     endpoint: "/api/bot/trade/sl-moved",
     authOk: true,
     result: "success",
-    payload: { pair, mt5Ticket, tradeUpdated: updated },
+    payload: { pair, mt5Ticket: mt5Ticket.toString(), tradeUpdated: updated },
   });
   return NextResponse.json({ ok: true, tradeUpdated: updated });
 }
