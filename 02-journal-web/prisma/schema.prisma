@@ -58,6 +58,13 @@ model Trade {
   pair            String
   direction       TradeDirection
 
+  // Trades que NO siguen la estrategia ICT modular (ej. bug de Sizing/SL):
+  // se guardan como evidencia historica pero quedan FUERA de toda metrica.
+  excludeFromStats Boolean @default(false)
+  // Multi-user (Fase 2): trades del bot visibles para todos los usuarios.
+  // Los manuales quedan en false (privados de su dueño).
+  isShared        Boolean @default(false)
+
   qualityRating   QualityRating?
   biasHTF         BiasHTF?
   inKillzone      Boolean?
@@ -104,6 +111,8 @@ model Trade {
   @@index([entryTime])
   @@index([pair])
   @@index([source])
+  @@index([isShared])
+  @@index([excludeFromStats])
 }
 
 model TradeConfluence {
