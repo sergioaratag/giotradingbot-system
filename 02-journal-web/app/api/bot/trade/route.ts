@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import type { TradeDirection, QualityRating } from "@prisma/client";
 import { sendTelegram } from "@/lib/telegram";
 import { formatTradeOpened } from "@/lib/telegram-messages";
+import { logBotRequest } from "@/lib/bot-telemetry";
 
 const DIRECTIONS = ["LONG", "SHORT"] as const;
 const QUALITIES = ["HIGH", "MEDIUM", "LOW"] as const;
@@ -18,6 +19,7 @@ export async function POST(req: Request) {
   const apiKey = req.headers.get("x-bot-api-key");
   const expected = process.env.BOT_API_KEY;
   if (!expected || apiKey !== expected) {
+    logBotRequest({ endpoint: "/api/bot/trade", authOk: false, result: "auth_failed" });
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -28,11 +30,41 @@ export async function POST(req: Request) {
   const entryPrice = Number(body.entryPrice);
   const stopLoss = Number(body.stopLoss);
 
+  const mt5Ticket =
+    body.mt5Ticket != null && Number.isFinite(Number(body.mt5Ticket))
+      ? Number(body.mt5Ticket)
+      : null;
+
   if (!pair || !direction || !Number.isFinite(entryPrice) || !Number.isFinite(stopLoss)) {
+    logBotRequest({
+      endpoint: "/api/bot/trade",
+      authOk: true,
+      result: "validation_failed",
+      payload: { pair, direction, mt5Ticket },
+    });
     return NextResponse.json(
       { error: "pair, direction, entryPrice, stopLoss required" },
       { status: 400 },
     );
+  }
+
+  // Fase 1.1 — Idempotencia. mt5Ticket es @unique: sin este check un re-POST
+  // (recovery on-init, reintento del bot) chocaria con el constraint y tiraria
+  // 500. En vez de eso devolvemos el trade existente. Safe para Recovery.mqh.
+  if (mt5Ticket != null) {
+    const existing = await prisma.trade.findUnique({ where: { mt5Ticket } });
+    if (existing) {
+      logBotRequest({
+        endpoint: "/api/bot/trade",
+        authOk: true,
+        result: "duplicate",
+        payload: { pair, direction, mt5Ticket },
+      });
+      return NextResponse.json(
+        { ok: true, alreadyExists: true, tradeId: existing.id, mt5Ticket },
+        { status: 200 },
+      );
+    }
   }
 
   // Single-user system — pick first user, optionally override via header
@@ -48,11 +80,6 @@ export async function POST(req: Request) {
   const confluences: string[] = Array.isArray(body.confluences)
     ? body.confluences.map(String).filter(Boolean)
     : [];
-
-  const mt5Ticket =
-    body.mt5Ticket != null && Number.isFinite(Number(body.mt5Ticket))
-      ? Number(body.mt5Ticket)
-      : null;
 
   try {
     const trade = await prisma.trade.create({
@@ -112,12 +139,24 @@ export async function POST(req: Request) {
       ).catch((e) => console.error("[telegram] TRADE_OPENED:", e)),
     );
 
+    logBotRequest({
+      endpoint: "/api/bot/trade",
+      authOk: true,
+      result: "success",
+      payload: { pair, direction, mt5Ticket: trade.mt5Ticket },
+    });
     return NextResponse.json(
       { ok: true, tradeId: trade.id, mt5Ticket: trade.mt5Ticket },
       { status: 201 },
     );
   } catch (error) {
     console.error("[POST /api/bot/trade] Error:", error);
+    logBotRequest({
+      endpoint: "/api/bot/trade",
+      authOk: true,
+      result: "db_error",
+      payload: { pair, direction, mt5Ticket },
+    });
     return NextResponse.json(
       {
         ok: false,
