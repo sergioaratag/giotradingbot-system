@@ -5,15 +5,19 @@ import { useCallback, useEffect, useState } from "react";
 export type BotStatus = {
   enabled: boolean;
   killSwitch: boolean;
+  lastSeen: string | null; // ISO del último reporte del EA (heartbeat)
   loading: boolean;
 };
 
 const POLL_MS = 30_000;
+// El EA reporta cada ~5s; >2min sin señal = lo consideramos "sin señal".
+export const BOT_ONLINE_THRESHOLD_MS = 120_000;
 
 export function useBotStatus() {
   const [state, setState] = useState<BotStatus>({
     enabled: false,
     killSwitch: false,
+    lastSeen: null,
     loading: true,
   });
 
@@ -28,6 +32,7 @@ export function useBotStatus() {
       setState({
         enabled: !!data.enabled,
         killSwitch: !!data.killSwitch,
+        lastSeen: data.lastSeen ?? null,
         loading: false,
       });
     } catch {
