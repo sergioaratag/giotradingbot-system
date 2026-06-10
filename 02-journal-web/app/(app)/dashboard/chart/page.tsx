@@ -11,7 +11,7 @@ const SYMBOLS = [
   { pair: "EURUSD" as const, label: "EUR/USD" },
   { pair: "GBPUSD" as const, label: "GBP/USD" },
 ];
-const TIMEFRAMES = ["M1", "M3", "M5", "M15", "H1", "H4"];
+const TIMEFRAMES = ["M3", "M5", "M15", "H1", "H4"];
 
 export default function ChartPage() {
   const [pair, setPair] = useState<"EURUSD" | "GBPUSD">("EURUSD");

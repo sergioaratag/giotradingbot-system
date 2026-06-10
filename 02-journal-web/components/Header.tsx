@@ -64,10 +64,14 @@ export function Header() {
       className="h-16 bg-onyx flex items-center justify-between px-8"
       style={{ borderBottom: "0.5px solid var(--color-graphite)" }}
     >
+      {/* Fix 1: en /dashboard/chart la página ya muestra EUR/USD grande + bias,
+          el breadcrumb "Chart" sobra. Lo ocultamos ahí. */}
       <div className="flex flex-col">
-        <div className="text-sm text-cream-muted">
-          {segments.length === 0 ? "Inicio" : pretty(last)}
-        </div>
+        {!pathname.startsWith("/dashboard/chart") && (
+          <div className="text-sm text-cream-muted">
+            {segments.length === 0 ? "Inicio" : pretty(last)}
+          </div>
+        )}
         {subtitle && (
           <div data-secondary="true" className="text-xs text-mute mt-0.5">
             {subtitle}

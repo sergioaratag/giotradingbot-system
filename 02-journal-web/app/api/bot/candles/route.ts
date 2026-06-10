@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 //   Retención: máximo 500 velas por (pair, timeframe).
 
 const PAIRS = ["EURUSD", "GBPUSD"];
-const TIMEFRAMES = ["M1", "M3", "M5", "M15", "H1", "H4"];
+const TIMEFRAMES = ["M3", "M5", "M15", "H1", "H4"]; // Fix 2: sin M1
 const MAX_PER_COMBO = 500;
 
 type IncomingCandle = {
