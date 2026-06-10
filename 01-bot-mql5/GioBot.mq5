@@ -24,6 +24,7 @@
 #include <Setup.mqh>
 #include <Management.mqh>
 #include <BotState.mqh>   // Fase 5: reporte de estado vivo (incluir DESPUES de Bias/Sizing/Setup)
+#include <CandleReporter.mqh>   // Fase 6: envia velas OHLC al journal
 
 // Inputs configurables desde MT5 GUI
 input string Symbol1        = "EURUSD";
@@ -171,6 +172,9 @@ void OnTick()
       BotState_Report(Symbol1);
       BotState_Report(Symbol2);
    }
+
+   // --- Fase 6: envio de velas OHLC al journal (backfill + cada 60s) ---
+   CandleReporter_Tick();
 
    // --- Tarea periodica (1 vez por hora): Modulo 11 News refresh ---
    // WebRequest es bloqueante; por eso solo 1x/h y nunca en cada tick.

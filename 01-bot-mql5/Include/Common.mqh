@@ -446,6 +446,10 @@ struct KillSwitchState
 #define JOURNAL_URL_SETUP_REJECTED    "https://giotradingbot-system.vercel.app/api/bot/setup-rejected"
 #define BOTSTATE_API_ENDPOINT         "https://giotradingbot-system.vercel.app/api/bot/state"
 #define BOTSTATE_REPORT_INTERVAL_SECONDS 5
+#define CANDLES_API_ENDPOINT          "https://giotradingbot-system.vercel.app/api/bot/candles"
+#define CANDLES_REPORT_INTERVAL_SECONDS  60
+#define CANDLES_BACKFILL_COUNT        200
+#define CANDLES_INCREMENTAL_COUNT     3
 #define JOURNAL_TIMEOUT_MS            5000
 
 #endif // COMMON_MQH
