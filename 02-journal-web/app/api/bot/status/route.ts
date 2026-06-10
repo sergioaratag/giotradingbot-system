@@ -10,13 +10,16 @@ export async function GET() {
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const rows = await prisma.botConfig.findMany({
-    where: { key: { in: ["BotEnabled", "BotKillSwitch"] } },
-  });
+  const [rows, lastState] = await Promise.all([
+    prisma.botConfig.findMany({ where: { key: { in: ["BotEnabled", "BotKillSwitch"] } } }),
+    // Heartbeat: el BotState más reciente = última vez que el EA reportó.
+    prisma.botState.findFirst({ orderBy: { updatedAt: "desc" }, select: { updatedAt: true } }),
+  ]);
   const map = new Map(rows.map((r) => [r.key, r.value === "true"]));
   return NextResponse.json({
     enabled: map.get("BotEnabled") ?? false,
     killSwitch: map.get("BotKillSwitch") ?? false,
+    lastSeen: lastState?.updatedAt.toISOString() ?? null,
   });
 }
 

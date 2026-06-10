@@ -46,9 +46,12 @@ export default function ChartPage() {
     <div className="-mx-8 -my-8 flex flex-col h-[calc(100vh-3.5rem)] bg-onyx">
       {/* Controles */}
       <div className="flex flex-wrap items-center gap-3 px-6 py-3 border-b border-graphite">
-        <h1 className="text-lg font-medium text-cream" style={{ letterSpacing: "0.3px" }}>
-          Análisis en Vivo
-        </h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-medium text-cream tabular-nums" style={{ letterSpacing: "0.5px" }}>
+            {pair.slice(0, 3)}/{pair.slice(3)}
+          </h1>
+          <BiasChip bias={current?.biasH4 ?? null} />
+        </div>
         <div className="ml-auto flex flex-wrap items-center gap-3">
           <div className="flex gap-1">
             {SYMBOLS.map((s) => (
@@ -95,5 +98,23 @@ export default function ChartPage() {
 
       <BotElementModal element={modalEl} onClose={() => setModalEl(null)} />
     </div>
+  );
+}
+
+function BiasChip({ bias }: { bias: string | null }) {
+  const b = (bias ?? "").toUpperCase();
+  const view =
+    b === "BULLISH"
+      ? { txt: "📈 Alcista H4", color: "var(--color-gold)" }
+      : b === "BEARISH"
+        ? { txt: "📉 Bajista H4", color: "var(--color-rose)" }
+        : { txt: "Bias H4 —", color: "var(--color-mute)" };
+  return (
+    <span
+      className="px-2.5 py-1 rounded-md text-xs font-medium"
+      style={{ color: view.color, background: "rgba(255,255,255,0.03)", border: "0.5px solid var(--color-graphite)" }}
+    >
+      {view.txt}
+    </span>
   );
 }

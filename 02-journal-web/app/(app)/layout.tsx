@@ -20,7 +20,7 @@ export default async function AppLayout({
       />
       <div className="pl-60 flex flex-col min-h-screen">
         <KillSwitchBanner />
-        <Header botOnline={false} />
+        <Header />
         <main className="flex-1 p-8">{children}</main>
       </div>
       <FocusMode />

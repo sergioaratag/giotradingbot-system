@@ -44,6 +44,7 @@ export function CandleChart({
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [, bump] = useState(0); // fuerza recomputo del overlay en pan/zoom
   const [empty, setEmpty] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const rerenderOverlay = useCallback(() => bump((n) => n + 1), []);
 
@@ -74,7 +75,10 @@ export function CandleChart({
       borderDownColor: DOWN,
       wickUpColor: UP,
       wickDownColor: DOWN,
+      // Bug #4: forex a 5 decimales en el eje y en el crosshair.
+      priceFormat: { type: "price", precision: 5, minMove: 0.00001 },
     });
+    chart.priceScale("right").applyOptions({ scaleMargins: { top: 0.12, bottom: 0.12 } });
     chartRef.current = chart;
     seriesRef.current = series;
 
@@ -98,7 +102,9 @@ export function CandleChart({
   // Cargar velas al cambiar par/TF + polling cada 30s.
   useEffect(() => {
     let alive = true;
+    let first = true;
     async function load() {
+      if (first) setLoading(true);
       try {
         const res = await fetch(`/api/candles?pair=${pair}&timeframe=${timeframe}&limit=300`, {
           cache: "no-store",
@@ -116,9 +122,13 @@ export function CandleChart({
             close: c.close,
           })),
         );
+        if (first) chartRef.current?.timeScale().fitContent();
         rerenderOverlay();
       } catch {
         /* reintenta */
+      } finally {
+        if (alive) setLoading(false);
+        first = false;
       }
     }
     load();
@@ -139,9 +149,17 @@ export function CandleChart({
         botState={botState}
         onElementClick={onElementClick}
       />
-      {empty && (
+      {loading && (
+        <div className="absolute top-3 left-3 pointer-events-none">
+          <span className="text-[11px] text-cream-muted px-2.5 py-1 rounded-md inline-flex items-center gap-1.5" style={{ background: "rgba(11,11,12,0.85)" }}>
+            <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "var(--color-rose)" }} />
+            Cargando {pair} {timeframe}…
+          </span>
+        </div>
+      )}
+      {!loading && empty && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <p className="text-xs text-mute px-6 py-3 rounded-md" style={{ background: "rgba(11,11,12,0.8)" }}>
+          <p className="text-xs text-mute px-6 py-3 rounded-md text-center" style={{ background: "rgba(11,11,12,0.8)" }}>
             Sin velas para {pair} {timeframe}. Llegan cuando el EA (recompilado con CandleReporter) las envía.
           </p>
         </div>

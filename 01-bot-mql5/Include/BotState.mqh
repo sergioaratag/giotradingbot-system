@@ -44,11 +44,22 @@ string BotState_FvgStateStr(FVGZone &f)
    return "ACTIVE";
 }
 
+// " @ 1.15995" si price>0, "" si no. Bug #6: precios en la narracion.
+string BotState_PriceTag(double price)
+{
+   return (price > 0.0 ? " @ " + DoubleToString(price, 5) : "");
+}
+
 // Narracion didactica segun killzone + progreso de los setups. ASCII-safe.
+// sweepPrice / fvgPrice: precios del setup activo para embeber en el texto.
 void BotState_BuildNarration(string symbol, ENUM_KILLZONE_STATUS kz, int n,
                              bool hasFvg, bool hasConfirmed,
+                             double sweepPrice, double fvgPrice,
                              string &action, string &reasoning, string &nextStep)
 {
+   string swT = BotState_PriceTag(sweepPrice);
+   string fvT = BotState_PriceTag(fvgPrice);
+
    if(kz != IN_KILLZONE)
    {
       action    = "Aguardando killzone (Londres / NY AM / NY Lunch)...";
@@ -67,7 +78,7 @@ void BotState_BuildNarration(string symbol, ENUM_KILLZONE_STATUS kz, int n,
 
    if(hasConfirmed)
    {
-      action    = "Confluencia completa en " + symbol + ". Validando bias HTF antes de operar...";
+      action    = "Confluencia completa en " + symbol + fvT + ". Validando bias HTF antes de operar...";
       reasoning = "Sweep + FVG + CHoCH presentes. Falta confirmar que el setup va a favor del bias H4.";
       nextStep  = "Si el setup esta alineado con el bias, arma la entrada.";
       return;
@@ -75,13 +86,13 @@ void BotState_BuildNarration(string symbol, ENUM_KILLZONE_STATUS kz, int n,
 
    if(hasFvg)
    {
-      action    = "FVG activo en " + symbol + ". Esperando CHoCH para confirmar la reversion...";
+      action    = "FVG activo en " + symbol + fvT + ". Esperando CHoCH para confirmar la reversion...";
       reasoning = "El FVG marca la zona de mitigacion; el CHoCH confirmaria que el sweep fue manipulacion real.";
       nextStep  = "Si confirma CHoCH, valida el bias y prepara la operacion.";
       return;
    }
 
-   action    = "Sweep detectado en " + symbol + ". Buscando FVG que mitigue el precio...";
+   action    = "Sweep detectado en " + symbol + swT + ". Buscando FVG que mitigue el precio...";
    reasoning = "Tras el barrido de liquidez, el bot busca un imbalance (FVG) en LTF para definir la entrada.";
    nextStep  = "Si aparece un FVG valido, espera el CHoCH de confirmacion.";
 }
@@ -98,10 +109,12 @@ void BotState_Report(string symbol)
 
    string fvgs = "", sweeps = "", markers = "";
    bool hasFvg = false, hasConfirmed = false;
+   double narrSweepPrice = 0.0, narrFvgPrice = 0.0; // primeros precios para la narracion
 
    for(int i = 0; i < n; i++)
    {
       // Sweep gatillo (con precio del nivel y timestamp para dibujar)
+      if(narrSweepPrice == 0.0) narrSweepPrice = setups[i].sweep.levelSwept.price;
       if(StringLen(sweeps) > 0) sweeps += ",";
       sweeps += "{\"tf\":\"" + Journal_SweepTfStr(setups[i].sweep.timeframe) + "\","
               + "\"level\":\"" + Journal_EscapeStr(EnumToString(setups[i].sweep.levelSwept.type)) + "\","
@@ -112,6 +125,7 @@ void BotState_Report(string symbol)
       if(setups[i].hasFVG)
       {
          hasFvg = true;
+         if(narrFvgPrice == 0.0) narrFvgPrice = setups[i].fvg.top;
          if(StringLen(fvgs) > 0) fvgs += ",";
          fvgs += "{\"tf\":\"" + Journal_FvgTfStr(setups[i].fvg.timeframe) + "\","
                + "\"side\":\"" + BotState_FvgSide(setups[i].fvg.type) + "\","
@@ -138,7 +152,8 @@ void BotState_Report(string symbol)
    string chochState = hasConfirmed ? "CONFIRMED" : (n > 0 ? "PENDING" : "NONE");
 
    string action, reasoning, nextStep;
-   BotState_BuildNarration(symbol, kz, n, hasFvg, hasConfirmed, action, reasoning, nextStep);
+   BotState_BuildNarration(symbol, kz, n, hasFvg, hasConfirmed,
+                           narrSweepPrice, narrFvgPrice, action, reasoning, nextStep);
 
    string body = "{";
    body += "\"symbol\":\"" + symbol + "\",";
