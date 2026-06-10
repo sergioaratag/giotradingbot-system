@@ -444,6 +444,8 @@ struct KillSwitchState
 #define JOURNAL_URL_TRADE_SL_MOVED    "https://giotradingbot-system.vercel.app/api/bot/trade/sl-moved"
 #define JOURNAL_URL_TRADE_CLOSED      "https://giotradingbot-system.vercel.app/api/bot/trade/closed"
 #define JOURNAL_URL_SETUP_REJECTED    "https://giotradingbot-system.vercel.app/api/bot/setup-rejected"
+#define BOTSTATE_API_ENDPOINT         "https://giotradingbot-system.vercel.app/api/bot/state"
+#define BOTSTATE_REPORT_INTERVAL_SECONDS 5
 #define JOURNAL_TIMEOUT_MS            5000
 
 #endif // COMMON_MQH

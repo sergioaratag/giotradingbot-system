@@ -23,6 +23,7 @@
 #include <Execution.mqh>
 #include <Setup.mqh>
 #include <Management.mqh>
+#include <BotState.mqh>   // Fase 5: reporte de estado vivo (incluir DESPUES de Bias/Sizing/Setup)
 
 // Inputs configurables desde MT5 GUI
 input string Symbol1        = "EURUSD";
@@ -30,6 +31,9 @@ input string Symbol2        = "GBPUSD";
 input bool   EnableLogging  = true;   // Resumen de liquidez en modo verbose
 input bool   VerboseLogging = false;  // true: logs por modulo. false: solo setups.
 input string BotApiKey      = "";     // x-bot-api-key para /api/news/bot-today del journal Vercel
+
+// Fase 5: throttle del reporte de estado vivo.
+datetime lastStateReport = 0;
 
 // Last update trackers (por simbolo)
 datetime lastUpdateH1_S1 = 0;
@@ -156,6 +160,16 @@ void OnTick()
       Execution_CancelExpiredLimits();    // M8: limpia pendings vencidos (45 min / fin de sesion)
       Filters_EnforceFridayClosing();     // M10: cierre forzado viernes >= 16:00 NY
       lastMinuteTask = TimeCurrent();
+   }
+
+   // --- Fase 5: reporte de estado vivo al journal (cada ~5s) ---
+   // Solo lee estado existente y lo POSTea. Fire-and-forget. Requiere BotApiKey.
+   if(StringLen(BotApiKey) > 0 &&
+      TimeCurrent() - lastStateReport >= BOTSTATE_REPORT_INTERVAL_SECONDS)
+   {
+      lastStateReport = TimeCurrent();
+      BotState_Report(Symbol1);
+      BotState_Report(Symbol2);
    }
 
    // --- Tarea periodica (1 vez por hora): Modulo 11 News refresh ---
