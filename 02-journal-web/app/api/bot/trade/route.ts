@@ -85,6 +85,7 @@ export async function POST(req: Request) {
         userId: user.id,
         mt5Ticket,
         source: "BOT",
+        isShared: true, // Fase 2.5: trades del bot visibles para todos los usuarios.
         pair,
         direction,
         qualityRating: isQuality(body.qualityRating) ? body.qualityRating : null,

@@ -21,8 +21,10 @@ export async function GET(_req: Request, { params }: Ctx) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const { id } = await params;
+  // Fase 2.5: ver propios + del bot (isShared). Editar/borrar siguen siendo
+  // solo del dueño (PATCH/DELETE más abajo filtran por userId).
   const trade = await prisma.trade.findFirst({
-    where: { id, userId: session.user.id },
+    where: { id, OR: [{ userId: session.user.id }, { isShared: true }] },
     include: { confluences: true },
   });
   if (!trade) return NextResponse.json({ error: "Not found" }, { status: 404 });

@@ -38,7 +38,10 @@ export async function GET(req: Request) {
   const concepts = searchParams.getAll("concept"); // multiple
   const limit = Math.min(parseInt(searchParams.get("limit") ?? "100", 10), 500);
 
-  const where: Prisma.TradeWhereInput = { userId: session.user.id };
+  // Fase 2.5: cada quien ve sus trades manuales + los del bot (isShared).
+  const where: Prisma.TradeWhereInput = {
+    OR: [{ userId: session.user.id }, { isShared: true }],
+  };
   if (pair) where.pair = pair;
   if (source && isSource(source)) where.source = source;
   if (quality && isQuality(quality)) where.qualityRating = quality;
