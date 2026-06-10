@@ -81,6 +81,53 @@ export function formatHM(minutes: number): string {
   return `${h}h ${m}m`;
 }
 
+// Mapea el nombre de killzone que manda el bot al id de KILLZONES.
+function botKzToId(name: string | null | undefined): Killzone["id"] | null {
+  switch (name) {
+    case "LONDON_KZ":
+      return "LDN";
+    case "NY_AM":
+      return "NY_AM";
+    case "NY_LUNCH":
+      return "NY_LUNCH";
+    default:
+      return null;
+  }
+}
+
+// Fase 6 — Ventana [start,end] en segundos Unix de la killzone del día de
+// `refUnixSec`, para pintar la banda de fondo en el chart. Relativo a la hora NY
+// actual, así que es DST-correcto (1 min NY = 1 min real salvo en la transición).
+export function killzoneWindowUnix(
+  name: string | null | undefined,
+  refUnixSec: number,
+): { start: number; end: number } | null {
+  const id = botKzToId(name);
+  if (!id) return null;
+  const kz = KILLZONES.find((k) => k.id === id);
+  if (!kz) return null;
+  const { totalMin } = nyParts(new Date(refUnixSec * 1000));
+  return {
+    start: refUnixSec + (kz.startMin - totalMin) * 60,
+    end: refUnixSec + (kz.endMin - totalMin) * 60,
+  };
+}
+
+export function killzoneLabelEs(name: string | null | undefined): string {
+  switch (name) {
+    case "LONDON_KZ":
+      return "Killzone Londres";
+    case "NY_AM":
+      return "Killzone NY AM";
+    case "NY_LUNCH":
+      return "Killzone NY Lunch";
+    case "SESSION_NO_KZ":
+      return "En sesión (fuera de killzone)";
+    default:
+      return "Fuera de killzone";
+  }
+}
+
 export function formatNYClock(date: Date = new Date()): string {
   const { hour, minute, second } = nyParts(date);
   const pad = (n: number) => n.toString().padStart(2, "0");

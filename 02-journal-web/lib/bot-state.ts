@@ -7,18 +7,21 @@ export type FvgState = {
   bot?: number;
   quality?: number; // 1-10
   state?: string; // "ACTIVE" | "MITIGATING" | "IFVG"
+  formedAt?: string; // ISO UTC — para posicionar en el chart
 };
 
 export type SweepState = {
   tf?: string;
-  level?: string; // "LONDON_H" | "EQH" ...
-  type?: string;
-  timestamp?: string;
+  level?: string; // tipo del nivel: "PDH" | "EQH" | "LIQ_LONDON_H" ...
+  price?: number; // precio exacto del nivel barrido
+  type?: string; // dirección del sweep
+  detectedAt?: string; // ISO UTC
 };
 
 export type BotMarker = {
-  type?: string; // "TRADE" | "SL" | "TP" | "FVG"
+  type?: string; // "CHOCH" | "TRADE" | "SL" | "TP"
   price?: number;
+  time?: string; // ISO UTC
   label?: string;
   tf?: string;
 };
