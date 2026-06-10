@@ -81,8 +81,11 @@ int OnInit()
    Print("GioBot v0.22 inicializado. Modulos: Liquidity + Sweep + FVG + Structure + Bias + Sizing + Journal + Recovery + News + KillSwitch + Filters + Execution + Setup + Management.");
    Print("Modulo News cargado. Endpoint: ", NEWS_API_ENDPOINT,
          " | Cache confiable: ", (News_CanQueryReliably() ? "SI" : "NO"));
+   // Claridad: 'Emergencia' es el kill-switch (OFF = normal). 'Bot habilitado'
+   // es si puede abrir nuevas entradas (BotEnabled del journal). No confundir.
    Print("Modulo KillSwitch cargado. Polling cada ", KILLSWITCH_POLL_INTERVAL_SECONDS,
-         "s | Estado inicial: ", (KillSwitch_IsActive() ? "ACTIVO" : "OFF"));
+         "s | Emergencia: ", (KillSwitch_IsActive() ? "ACTIVA" : "OFF (normal)"),
+         " | Bot habilitado: ", (KillSwitch_IsBotEnabled() ? "SI" : "NO"));
    Print("Modulo Journal cargado. POSTs fire-and-forget a /api/bot/trade, /sl-moved, /closed, /setup-rejected");
    if(StringLen(BotApiKey) == 0)
       Print("[WARN] Input BotApiKey vacio - News, KillSwitch y Journal fallaran. Configurar antes de operar.");
