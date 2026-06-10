@@ -28,7 +28,7 @@ async function main() {
   console.log(DRY_RUN ? "== DRY RUN (no se borra nada) ==\n" : "== CLEANUP ==\n");
 
   const candidates = await prisma.trade.findMany({
-    where: { mt5Ticket: { in: TEST_TICKETS } },
+    where: { mt5Ticket: { in: TEST_TICKETS.map((t) => BigInt(t)) } },
     select: {
       id: true,
       mt5Ticket: true,

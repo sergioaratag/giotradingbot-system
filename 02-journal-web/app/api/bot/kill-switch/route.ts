@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { requireOwner } from "@/lib/auth-helpers";
 import { sendTelegram } from "@/lib/telegram";
 import {
   formatKillSwitchActivated,
@@ -34,10 +34,8 @@ export async function GET(req: Request) {
 
 // User session endpoint — toggles the kill switch.
 export async function POST(req: Request) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const gate = await requireOwner();
+  if (!gate.ok) return gate.response;
 
   const body = await req.json().catch(() => ({}));
   const activated = Boolean(body.activated);
@@ -57,7 +55,7 @@ export async function POST(req: Request) {
       data: {
         type: "KILL_SWITCH",
         message: "Activated by user",
-        metadata: { userId: session.user.id, userEmail: session.user.email },
+        metadata: { userId: gate.userId, userEmail: gate.email },
       },
     });
   } else {
@@ -65,7 +63,7 @@ export async function POST(req: Request) {
       data: {
         type: "KILL_SWITCH",
         message: "Deactivated by user",
-        metadata: { userId: session.user.id, userEmail: session.user.email },
+        metadata: { userId: gate.userId, userEmail: gate.email },
       },
     });
   }

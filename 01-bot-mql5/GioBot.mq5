@@ -16,6 +16,7 @@
 #include <Bias.mqh>
 #include <Sizing.mqh>
 #include <Journal.mqh>
+#include <Recovery.mqh>
 #include <News.mqh>
 #include <KillSwitch.mqh>
 #include <Filters.mqh>
@@ -66,7 +67,13 @@ int OnInit()
    KillSwitch_Poll();
    KillSwitch_EnforceIfActive();
 
-   Print("GioBot v0.22 inicializado. Modulos: Liquidity + Sweep + FVG + Structure + Bias + Sizing + Journal + News + KillSwitch + Filters + Execution + Setup + Management.");
+   // Fase 1.5: reconciliar posiciones abiertas del bot que no llegaron al
+   // journal (POST de apertura fallido). Idempotente por mt5Ticket en el
+   // endpoint, asi que es safe en cada arranque. Solo si hay key configurada.
+   if(StringLen(BotApiKey) > 0)
+      Recovery_ReconcileOpenPositions();
+
+   Print("GioBot v0.22 inicializado. Modulos: Liquidity + Sweep + FVG + Structure + Bias + Sizing + Journal + Recovery + News + KillSwitch + Filters + Execution + Setup + Management.");
    Print("Modulo News cargado. Endpoint: ", NEWS_API_ENDPOINT,
          " | Cache confiable: ", (News_CanQueryReliably() ? "SI" : "NO"));
    Print("Modulo KillSwitch cargado. Polling cada ", KILLSWITCH_POLL_INTERVAL_SECONDS,

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { requireOwner } from "@/lib/auth-helpers";
 
 export const dynamic = "force-dynamic";
 
@@ -20,10 +21,8 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const gate = await requireOwner();
+  if (!gate.ok) return gate.response;
   const body = await req.json().catch(() => ({}));
   if (typeof body.enabled !== "boolean") {
     return NextResponse.json(
@@ -44,7 +43,7 @@ export async function POST(req: Request) {
     data: {
       type: "BOT_TOGGLE",
       message: body.enabled ? "Enabled by user" : "Disabled by user",
-      metadata: { userId: session.user.id },
+      metadata: { userId: gate.userId },
     },
   });
   return NextResponse.json({ ok: true, enabled: body.enabled });

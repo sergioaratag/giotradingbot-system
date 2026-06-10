@@ -30,8 +30,13 @@ export async function GET() {
   const userId = session.user.id;
   const now = new Date();
 
+  // Fase 2.5: métricas sobre propios + del bot (isShared), EXCLUYENDO los
+  // trades marcados excludeFromStats (evidencia que no sigue la estrategia).
   const trades = await prisma.trade.findMany({
-    where: { userId },
+    where: {
+      excludeFromStats: false,
+      OR: [{ userId }, { isShared: true }],
+    },
     include: { confluences: true },
     orderBy: { entryTime: "desc" },
     take: 1000,

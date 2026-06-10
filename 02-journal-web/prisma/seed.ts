@@ -373,8 +373,12 @@ async function main() {
     console.log(`[seed] notas ya existen (${noteCount}) — skip`);
   }
 
+  // Fase 1.3: los sample trades quedan OPT-IN (SEED_SAMPLE_TRADES=true). Por
+  // defecto NO se siembran, para que `prisma db seed` jamás reintroduzca los
+  // trades de ejemplo (EUR-USD/GBP-USD) que se limpiaron. La data real viene
+  // del bot vía /api/bot/trade.
   const tradeCount = await prisma.trade.count({ where: { userId: user.id } });
-  if (tradeCount === 0) {
+  if (process.env.SEED_SAMPLE_TRADES === "true" && tradeCount === 0) {
     for (const t of SEED_TRADES) {
       const { confluences, ...rest } = t;
       await prisma.trade.create({
@@ -392,7 +396,9 @@ async function main() {
       `[seed] insertados ${SEED_TRADES.length} trades para ${user.email}`,
     );
   } else {
-    console.log(`[seed] trades ya existen (${tradeCount}) — skip`);
+    console.log(
+      `[seed] sample trades NO sembrados (SEED_SAMPLE_TRADES!=true o ya hay ${tradeCount} trades) — skip`,
+    );
   }
 }
 

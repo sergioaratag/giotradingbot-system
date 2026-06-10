@@ -2,6 +2,7 @@ import { NextResponse, after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendTelegram } from "@/lib/telegram";
 import { formatSetupRejectedHigh } from "@/lib/telegram-messages";
+import { logBotRequest } from "@/lib/bot-telemetry";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +13,7 @@ export async function POST(req: Request) {
   const apiKey = req.headers.get("x-bot-api-key");
   const expected = process.env.BOT_API_KEY;
   if (!expected || apiKey !== expected) {
+    logBotRequest({ endpoint: "/api/bot/setup-rejected", authOk: false, result: "auth_failed" });
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -20,6 +22,12 @@ export async function POST(req: Request) {
   const rejectionReason = String(body.rejectionReason ?? "").trim();
 
   if (!pair || !rejectionReason) {
+    logBotRequest({
+      endpoint: "/api/bot/setup-rejected",
+      authOk: true,
+      result: "validation_failed",
+      payload: { pair },
+    });
     return NextResponse.json(
       { error: "pair and rejectionReason required" },
       { status: 400 },
@@ -56,5 +64,11 @@ export async function POST(req: Request) {
     );
   }
 
+  logBotRequest({
+    endpoint: "/api/bot/setup-rejected",
+    authOk: true,
+    result: "success",
+    payload: { pair, direction: body.direction, qualityRating: body.qualityRating },
+  });
   return NextResponse.json({ ok: true });
 }

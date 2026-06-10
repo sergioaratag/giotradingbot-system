@@ -11,6 +11,7 @@ model User {
   email         String    @unique
   passwordHash  String
   name          String?
+  role          UserRole  @default(MEMBER)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -52,11 +53,18 @@ model Trade {
   userId          String
   user            User     @relation(fields: [userId], references: [id])
 
-  mt5Ticket       Int?     @unique  // Ticket de MT5 (set por el bot al crear). Nullable en trades MANUAL.
+  mt5Ticket       BigInt?  @unique  // Ticket de MT5 (set por el bot al crear). Nullable en trades MANUAL. BigInt: tickets reales ~9e9 desbordan INT4.
 
   source          TradeSource
   pair            String
   direction       TradeDirection
+
+  // Trades que NO siguen la estrategia ICT modular (ej. bug de Sizing/SL):
+  // se guardan como evidencia historica pero quedan FUERA de toda metrica.
+  excludeFromStats Boolean @default(false)
+  // Multi-user (Fase 2): trades del bot visibles para todos los usuarios.
+  // Los manuales quedan en false (privados de su dueño).
+  isShared        Boolean @default(false)
 
   qualityRating   QualityRating?
   biasHTF         BiasHTF?
@@ -104,6 +112,8 @@ model Trade {
   @@index([entryTime])
   @@index([pair])
   @@index([source])
+  @@index([isShared])
+  @@index([excludeFromStats])
 }
 
 model TradeConfluence {
@@ -197,6 +207,11 @@ model BotEvent {
 
   @@index([timestamp])
   @@index([type])
+}
+
+enum UserRole {
+  OWNER
+  MEMBER
 }
 
 enum TradeSource {

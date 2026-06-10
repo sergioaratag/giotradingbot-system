@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { requireOwner } from "@/lib/auth-helpers";
 import {
   BOT_CONFIG_SPECS,
   getSpec,
@@ -34,10 +35,8 @@ export async function GET() {
 type Patch = { key: unknown; value: unknown };
 
 export async function PATCH(req: Request) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const gate = await requireOwner();
+  if (!gate.ok) return gate.response;
 
   const body = await req.json().catch(() => ({}));
   const list = Array.isArray(body.configs) ? (body.configs as Patch[]) : null;

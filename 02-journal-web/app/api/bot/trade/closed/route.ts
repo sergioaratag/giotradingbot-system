@@ -2,6 +2,8 @@ import { NextResponse, after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendTelegram } from "@/lib/telegram";
 import { formatTradeClosed } from "@/lib/telegram-messages";
+import { logBotRequest } from "@/lib/bot-telemetry";
+import { parseMt5Ticket } from "@/lib/mt5-ticket";
 
 export const dynamic = "force-dynamic";
 
@@ -30,11 +32,12 @@ export async function POST(req: Request) {
   const apiKey = req.headers.get("x-bot-api-key");
   const expected = process.env.BOT_API_KEY;
   if (!expected || apiKey !== expected) {
+    logBotRequest({ endpoint: "/api/bot/trade/closed", authOk: false, result: "auth_failed" });
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const body = await req.json().catch(() => ({}));
-  const mt5Ticket = Number(body.mt5Ticket);
+  const mt5Ticket = parseMt5Ticket(body.mt5Ticket);
   const pair = String(body.pair ?? "").trim();
   const closePrice = Number(body.closePrice);
   const pnlUSD = Number(body.pnlUSD);
@@ -44,7 +47,13 @@ export async function POST(req: Request) {
     : "SL_HIT";
   const exitTime = body.exitTime ? new Date(body.exitTime) : new Date();
 
-  if (!Number.isFinite(mt5Ticket) || !pair || !Number.isFinite(closePrice)) {
+  if (mt5Ticket == null || !pair || !Number.isFinite(closePrice)) {
+    logBotRequest({
+      endpoint: "/api/bot/trade/closed",
+      authOk: true,
+      result: "validation_failed",
+      payload: { pair, mt5Ticket: mt5Ticket?.toString() ?? null },
+    });
     return NextResponse.json(
       { error: "mt5Ticket, pair, closePrice required" },
       { status: 400 },
@@ -72,7 +81,7 @@ export async function POST(req: Request) {
       pair,
       message: `Closed @ ${closePrice} | PnL ${pnlUSD} USD | R=${rAchieved} | reason=${closeReason}`,
       metadata: {
-        mt5Ticket,
+        mt5Ticket: mt5Ticket.toString(),
         closePrice,
         pnlUSD,
         rAchieved,
@@ -89,7 +98,7 @@ export async function POST(req: Request) {
   after(() =>
     sendTelegram(
       formatTradeClosed({
-        mt5Ticket,
+        mt5Ticket: mt5Ticket.toString(),
         pair,
         closePrice,
         pnlUSD: Number.isFinite(pnlUSD) ? pnlUSD : 0,
@@ -100,5 +109,11 @@ export async function POST(req: Request) {
     ).catch((e) => console.error("[telegram] TRADE_CLOSED:", e)),
   );
 
+  logBotRequest({
+    endpoint: "/api/bot/trade/closed",
+    authOk: true,
+    result: "success",
+    payload: { pair, mt5Ticket: mt5Ticket.toString(), tradeUpdated: updated },
+  });
   return NextResponse.json({ ok: true, tradeUpdated: updated });
 }

@@ -56,7 +56,10 @@ export async function GET(req: Request) {
   const fromStr = searchParams.get("from");
   const toStr = searchParams.get("to");
 
-  const where: Prisma.TradeWhereInput = { userId: session.user.id };
+  // Fase 2.5: exportar propios + del bot (isShared).
+  const where: Prisma.TradeWhereInput = {
+    OR: [{ userId: session.user.id }, { isShared: true }],
+  };
   if (fromStr || toStr) {
     where.entryTime = {};
     if (fromStr) where.entryTime.gte = new Date(fromStr);
