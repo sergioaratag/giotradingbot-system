@@ -11,6 +11,7 @@ model User {
   email         String    @unique
   passwordHash  String
   name          String?
+  role          UserRole  @default(MEMBER)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -206,6 +207,11 @@ model BotEvent {
 
   @@index([timestamp])
   @@index([type])
+}
+
+enum UserRole {
+  OWNER
+  MEMBER
 }
 
 enum TradeSource {
