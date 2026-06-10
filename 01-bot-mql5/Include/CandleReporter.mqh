@@ -74,14 +74,18 @@ bool CandleReporter_ReportOne(string symbol, ENUM_TIMEFRAMES tf, int count)
 }
 
 // Reporta los 2 simbolos x 6 timeframes con `count` velas cada uno.
-void CandleReporter_ReportAll(int count)
+// Retorna true solo si TODOS los POST (12 combos) dieron 2xx.
+bool CandleReporter_ReportAll(int count)
 {
    string         symbols[] = {"EURUSD", "GBPUSD"};
    ENUM_TIMEFRAMES tfs[]    = {PERIOD_M1, PERIOD_M3, PERIOD_M5, PERIOD_M15, PERIOD_H1, PERIOD_H4};
 
+   bool allOk = true;
    for(int s = 0; s < ArraySize(symbols); s++)
       for(int t = 0; t < ArraySize(tfs); t++)
-         CandleReporter_ReportOne(symbols[s], tfs[t], count);
+         if(!CandleReporter_ReportOne(symbols[s], tfs[t], count))
+            allOk = false;
+   return allOk;
 }
 
 // Llamar en cada OnTick. Backfill en el primer tick, luego incremental cada 60s.
@@ -89,10 +93,22 @@ void CandleReporter_Tick()
 {
    if(!g_candle_backfill_done)
    {
-      CandleReporter_ReportAll(CANDLES_BACKFILL_COUNT);
-      g_candle_backfill_done = true;
-      g_last_candle_report   = TimeCurrent();
-      Print("[CANDLES] Backfill inicial enviado (", CANDLES_BACKFILL_COUNT, " velas x 12 combos).");
+      // Reintenta el backfill (throttled a CANDLES_REPORT_INTERVAL_SECONDS)
+      // hasta que TODOS los combos entren. Auto-reparable: si el endpoint
+      // estaba caido/500, al volver se completa solo sin recargar el EA.
+      if(g_last_candle_report != 0 &&
+         TimeCurrent() - g_last_candle_report < CANDLES_REPORT_INTERVAL_SECONDS) return;
+      g_last_candle_report = TimeCurrent();
+      if(CandleReporter_ReportAll(CANDLES_BACKFILL_COUNT))
+      {
+         g_candle_backfill_done = true;
+         Print("[CANDLES] Backfill inicial OK (", CANDLES_BACKFILL_COUNT, " velas x 12 combos).");
+      }
+      else
+      {
+         Print("[CANDLES] Backfill incompleto (algun combo fallo). Reintenta en ",
+               CANDLES_REPORT_INTERVAL_SECONDS, "s.");
+      }
       return;
    }
 
