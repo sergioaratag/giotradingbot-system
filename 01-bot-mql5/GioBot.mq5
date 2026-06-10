@@ -78,7 +78,7 @@ int OnInit()
    if(StringLen(BotApiKey) > 0)
       Recovery_ReconcileOpenPositions();
 
-   Print("GioBot v0.22 inicializado. Modulos: Liquidity + Sweep + FVG + Structure + Bias + Sizing + Journal + Recovery + News + KillSwitch + Filters + Execution + Setup + Management.");
+   Print("GioBot v0.23 (Fase 6A) inicializado. Modulos: Liquidity + Sweep + FVG + Structure + Bias + Sizing + Journal + Recovery + BotState + CandleReporter + News + KillSwitch + Filters + Execution + Setup + Management.");
    Print("Modulo News cargado. Endpoint: ", NEWS_API_ENDPOINT,
          " | Cache confiable: ", (News_CanQueryReliably() ? "SI" : "NO"));
    // Claridad: 'Emergencia' es el kill-switch (OFF = normal). 'Bot habilitado'
@@ -87,6 +87,9 @@ int OnInit()
          "s | Emergencia: ", (KillSwitch_IsActive() ? "ACTIVA" : "OFF (normal)"),
          " | Bot habilitado: ", (KillSwitch_IsBotEnabled() ? "SI" : "NO"));
    Print("Modulo Journal cargado. POSTs fire-and-forget a /api/bot/trade, /sl-moved, /closed, /setup-rejected");
+   // Fase 6A: logs de confirmacion del codigo nuevo (para verificar recompilacion).
+   Print("[BOTSTATE] modulo cargado | POST cada ", BOTSTATE_REPORT_INTERVAL_SECONDS, "s a ", BOTSTATE_API_ENDPOINT);
+   Print("[CANDLES] CandleReporter cargado | backfill ", CANDLES_BACKFILL_COUNT, " + ", CANDLES_INCREMENTAL_COUNT, " velas cada ", CANDLES_REPORT_INTERVAL_SECONDS, "s a ", CANDLES_API_ENDPOINT);
    if(StringLen(BotApiKey) == 0)
       Print("[WARN] Input BotApiKey vacio - News, KillSwitch y Journal fallaran. Configurar antes de operar.");
    Print("Simbolos: ", Symbol1, ", ", Symbol2, " | Verbose: ", (VerboseLogging ? "ON" : "OFF"));
