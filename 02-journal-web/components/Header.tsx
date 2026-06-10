@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
 import { activeKillzone, formatNYClock } from "@/lib/killzones";
 import { useNewsBlock } from "@/hooks/useNewsBlock";
+import { useBotStatus, BOT_ONLINE_THRESHOLD_MS } from "@/hooks/useBotStatus";
 
 const LABELS: Record<string, string> = {
   dashboard: "Dashboard",
@@ -26,7 +27,7 @@ function pretty(s: string) {
   return LABELS[s] ?? s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-export function Header({ botOnline = false }: { botOnline?: boolean }) {
+export function Header() {
   const pathname = usePathname();
   const segments = pathname.split("/").filter(Boolean);
   const last = segments[segments.length - 1] ?? "dashboard";
@@ -43,6 +44,20 @@ export function Header({ botOnline = false }: { botOnline?: boolean }) {
   const kz = now ? activeKillzone(now) : null;
   const clock = now ? formatNYClock(now) : "—";
   const block = useNewsBlock();
+  const bot = useBotStatus();
+
+  // Estado del bot para el header (Bug #1): fuente única = BotConfig.BotEnabled
+  // + heartbeat (último BotState). killSwitch manda; si está habilitado pero sin
+  // señal reciente del EA, lo marcamos en ámbar.
+  const online =
+    !!bot.lastSeen && now != null && now.getTime() - Date.parse(bot.lastSeen) < BOT_ONLINE_THRESHOLD_MS;
+  const botView = bot.killSwitch
+    ? { label: "EMERGENCIA", color: "var(--color-rose)", dot: "var(--color-rose-deep)", pulse: false }
+    : !bot.enabled
+      ? { label: "BOT OFF", color: "var(--color-dust)", dot: "var(--color-mute)", pulse: false }
+      : online
+        ? { label: "BOT ON", color: "var(--color-cream-muted)", dot: "var(--color-profit-bright)", pulse: true }
+        : { label: "BOT ON · sin señal", color: "var(--color-gold)", dot: "var(--color-gold)", pulse: false };
 
   return (
     <header
@@ -106,22 +121,16 @@ export function Header({ botOnline = false }: { botOnline?: boolean }) {
           }}
         />
 
-        <span className="flex items-center gap-2">
+        <span className="flex items-center gap-2" title={bot.lastSeen ? `Último reporte del EA: ${new Date(bot.lastSeen).toLocaleString("es-BO", { hour12: false })}` : "El EA no reportó todavía"}>
           <span
-            className={`inline-block h-1.5 w-1.5 rounded-full ${
-              botOnline ? "gio-pulse" : ""
-            }`}
-            style={{
-              background: botOnline
-                ? "var(--color-rose)"
-                : "var(--color-mute)",
-            }}
+            className={`inline-block h-1.5 w-1.5 rounded-full ${botView.pulse ? "gio-pulse" : ""}`}
+            style={{ background: botView.dot }}
           />
           <span
-            className="font-mono text-xs text-dust"
-            style={{ letterSpacing: "0.14em" }}
+            className="font-mono text-xs"
+            style={{ letterSpacing: "0.14em", color: botView.color }}
           >
-            BOT {botOnline ? "ON" : "OFF"}
+            {botView.label}
           </span>
         </span>
       </div>
