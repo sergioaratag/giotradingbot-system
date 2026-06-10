@@ -195,6 +195,22 @@ model BotConfig {
   updatedAt   DateTime @updatedAt
 }
 
+model Candle {
+  id          String   @id @default(cuid())
+  pair        String   // "EURUSD" | "GBPUSD"
+  timeframe   String   // "M1" | "M3" | "M5" | "M15" | "H1" | "H4"
+  timestamp   DateTime // open time de la vela (UTC)
+  open        Float
+  high        Float
+  low         Float
+  close       Float
+  volume      Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  @@unique([pair, timeframe, timestamp])
+  @@index([pair, timeframe, timestamp(sort: Desc)])
+}
+
 model BotState {
   id            String   @id @default(cuid())
   symbol        String   @unique // "EURUSD" | "GBPUSD"

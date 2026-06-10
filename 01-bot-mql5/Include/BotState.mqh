@@ -23,6 +23,17 @@
 #include <Sizing.mqh>
 #include <Setup.mqh>
 
+// ISO 8601 UTC desde un datetime en hora del servidor MT5 (robusto a DST).
+string BotState_IsoUtc(datetime serverTime)
+{
+   int srvOffset = (int)(TimeCurrent() - TimeGMT());
+   datetime utc  = serverTime - srvOffset;
+   MqlDateTime d;
+   TimeToStruct(utc, d);
+   return StringFormat("%04d-%02d-%02dT%02d:%02d:%02dZ",
+                       d.year, d.mon, d.day, d.hour, d.min, d.sec);
+}
+
 string BotState_FvgSide(ENUM_FVG_TYPE t) { return (t == FVG_BEARISH ? "BEAR" : "BULL"); }
 
 string BotState_FvgStateStr(FVGZone &f)
@@ -85,16 +96,18 @@ void BotState_Report(string symbol)
    TradeSetup setups[];
    int n = Setup_GetActive(symbol, setups);
 
-   string fvgs = "", sweeps = "";
+   string fvgs = "", sweeps = "", markers = "";
    bool hasFvg = false, hasConfirmed = false;
 
    for(int i = 0; i < n; i++)
    {
-      // Sweep gatillo
+      // Sweep gatillo (con precio del nivel y timestamp para dibujar)
       if(StringLen(sweeps) > 0) sweeps += ",";
       sweeps += "{\"tf\":\"" + Journal_SweepTfStr(setups[i].sweep.timeframe) + "\","
               + "\"level\":\"" + Journal_EscapeStr(EnumToString(setups[i].sweep.levelSwept.type)) + "\","
-              + "\"type\":\"" + EnumToString(setups[i].sweep.direction) + "\"}";
+              + "\"price\":" + DoubleToString(setups[i].sweep.levelSwept.price, 5) + ","
+              + "\"type\":\"" + EnumToString(setups[i].sweep.direction) + "\","
+              + "\"detectedAt\":\"" + BotState_IsoUtc(setups[i].sweep.detectedAt) + "\"}";
 
       if(setups[i].hasFVG)
       {
@@ -105,7 +118,18 @@ void BotState_Report(string symbol)
                + "\"top\":" + DoubleToString(setups[i].fvg.top, 5) + ","
                + "\"bot\":" + DoubleToString(setups[i].fvg.bottom, 5) + ","
                + "\"quality\":" + IntegerToString(setups[i].fvg.quality) + ","
-               + "\"state\":\"" + BotState_FvgStateStr(setups[i].fvg) + "\"}";
+               + "\"state\":\"" + BotState_FvgStateStr(setups[i].fvg) + "\","
+               + "\"formedAt\":\"" + BotState_IsoUtc(setups[i].fvg.formedAt) + "\"}";
+      }
+
+      if(setups[i].hasCHoCH)
+      {
+         if(StringLen(markers) > 0) markers += ",";
+         markers += "{\"type\":\"CHOCH\","
+                  + "\"price\":" + DoubleToString(setups[i].choch.brokenLevel, 5) + ","
+                  + "\"time\":\"" + BotState_IsoUtc(setups[i].choch.detectedAt) + "\","
+                  + "\"tf\":\"" + Journal_StructTfStr(setups[i].choch.timeframe) + "\","
+                  + "\"label\":\"CHoCH\"}";
       }
 
       if(setups[i].hasCHoCH || setups[i].state == SETUP_CONFIRMED) hasConfirmed = true;
@@ -123,7 +147,7 @@ void BotState_Report(string symbol)
    body += "\"chochState\":\"" + chochState + "\",";
    body += "\"fvgs\":[" + fvgs + "],";
    body += "\"sweeps\":[" + sweeps + "],";
-   body += "\"markers\":[],";
+   body += "\"markers\":[" + markers + "],";
    body += "\"currentAction\":\"" + Journal_EscapeStr(action) + "\",";
    body += "\"reasoning\":\"" + Journal_EscapeStr(reasoning) + "\",";
    body += "\"nextStep\":\"" + Journal_EscapeStr(nextStep) + "\"";
