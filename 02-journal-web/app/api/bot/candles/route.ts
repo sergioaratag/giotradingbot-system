@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { randomUUID } from "node:crypto";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { logBotRequest } from "@/lib/bot-telemetry";
 
@@ -61,26 +63,35 @@ export async function POST(req: Request) {
   }
 
   const candles = incoming.filter(validCandle).slice(0, 600);
+  if (candles.length === 0) {
+    logBotRequest({
+      endpoint: "/api/bot/candles",
+      authOk: true,
+      result: "validation_failed",
+      payload: { pair, timeframe, count: 0 },
+    });
+    return NextResponse.json({ error: "candles[] sin velas válidas" }, { status: 400 });
+  }
 
   try {
-    // Upsert idempotente: la vela en formación cambia OHLC con el mismo timestamp.
-    await prisma.$transaction(
-      candles.map((c) => {
-        const ts = new Date(c.timestamp);
-        const data = {
-          open: Number(c.open),
-          high: Number(c.high),
-          low: Number(c.low),
-          close: Number(c.close),
-          volume: Number.isFinite(Number(c.volume)) ? Math.trunc(Number(c.volume)) : 0,
-        };
-        return prisma.candle.upsert({
-          where: { pair_timeframe_timestamp: { pair, timeframe, timestamp: ts } },
-          create: { pair, timeframe, timestamp: ts, ...data },
-          update: data,
-        });
-      }),
+    // Bulk upsert en UN solo round-trip (antes: $transaction de N upserts que
+    // pasaba los 5s con el backfill de 200 → P2028). La vela en formación se
+    // actualiza por (pair,timeframe,timestamp) único vía ON CONFLICT.
+    const rows = candles.map(
+      (c) =>
+        Prisma.sql`(${randomUUID()}, ${pair}, ${timeframe}, ${new Date(c.timestamp)}, ${Number(c.open)}, ${Number(c.high)}, ${Number(c.low)}, ${Number(c.close)}, ${Number.isFinite(Number(c.volume)) ? Math.trunc(Number(c.volume)) : 0}, NOW())`,
     );
+    await prisma.$executeRaw`
+      INSERT INTO "Candle" ("id", "pair", "timeframe", "timestamp", "open", "high", "low", "close", "volume", "createdAt")
+      VALUES ${Prisma.join(rows)}
+      ON CONFLICT ("pair", "timeframe", "timestamp")
+      DO UPDATE SET
+        "open" = EXCLUDED."open",
+        "high" = EXCLUDED."high",
+        "low" = EXCLUDED."low",
+        "close" = EXCLUDED."close",
+        "volume" = EXCLUDED."volume"
+    `;
 
     // Retención: borrar lo que exceda las MAX_PER_COMBO más recientes.
     const cutoff = await prisma.candle.findMany({
