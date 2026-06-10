@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 
 const PAIRS = ["EURUSD", "GBPUSD"];
-const TIMEFRAMES = ["M1", "M3", "M5", "M15", "H1", "H4"];
+const TIMEFRAMES = ["M3", "M5", "M15", "H1", "H4"]; // Fix 2: sin M1
 
 // Fase 6 — Velas para el chart custom (Lightweight Charts).
 // time va en segundos Unix (UTC), ascendente. Requiere sesión.

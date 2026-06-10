@@ -4,8 +4,11 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import {
   createChart,
   CandlestickSeries,
+  createSeriesMarkers,
   ColorType,
   CrosshairMode,
+  type ISeriesMarkersPluginApi,
+  type SeriesMarker,
   type IChartApi,
   type ISeriesApi,
   type Time,
@@ -41,10 +44,13 @@ export function CandleChart({
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
+  const markersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [, bump] = useState(0); // fuerza recomputo del overlay en pan/zoom
   const [empty, setEmpty] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [lastUpdate, setLastUpdate] = useState<number | null>(null);
+  const [, tick] = useState(0); // 1s ticker para "actualizado hace Xs"
 
   const rerenderOverlay = useCallback(() => bump((n) => n + 1), []);
 
@@ -81,6 +87,7 @@ export function CandleChart({
     chart.priceScale("right").applyOptions({ scaleMargins: { top: 0.12, bottom: 0.12 } });
     chartRef.current = chart;
     seriesRef.current = series;
+    markersRef.current = createSeriesMarkers(series, []); // Fix 4: marcas de trades
 
     chart.timeScale().subscribeVisibleLogicalRangeChange(rerenderOverlay);
 
@@ -96,6 +103,7 @@ export function CandleChart({
       chart.remove();
       chartRef.current = null;
       seriesRef.current = null;
+      markersRef.current = null;
     };
   }, [rerenderOverlay]);
 
@@ -123,6 +131,7 @@ export function CandleChart({
           })),
         );
         if (first) chartRef.current?.timeScale().fitContent();
+        if (alive) setLastUpdate(Date.now()); // Fix 3: marca de actualización
         rerenderOverlay();
       } catch {
         /* reintenta */
@@ -132,12 +141,55 @@ export function CandleChart({
       }
     }
     load();
-    const id = setInterval(load, 30_000);
+    // Fix 3: refetch cada 20s (el bot manda incrementales cada 60s).
+    const id = setInterval(load, 20_000);
     return () => {
       alive = false;
       clearInterval(id);
     };
   }, [pair, timeframe, rerenderOverlay]);
+
+  // Fix 3: ticker de 1s para mostrar "actualizado hace Xs".
+  useEffect(() => {
+    const t = setInterval(() => tick((n) => n + 1), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  // Fix 4: marcas de los trades del bot del par (de la tabla Trade).
+  useEffect(() => {
+    let alive = true;
+    async function loadTrades() {
+      try {
+        const res = await fetch(`/api/trades?pair=${pair}&source=BOT&limit=50`, { cache: "no-store" });
+        if (!res.ok || !alive) return;
+        const { trades } = (await res.json()) as {
+          trades: { direction: "LONG" | "SHORT"; entryPrice: number; entryTime: string }[];
+        };
+        if (!alive || !markersRef.current) return;
+        const markers: SeriesMarker<Time>[] = trades
+          .map((t) => {
+            const long = t.direction === "LONG";
+            return {
+              time: Math.floor(Date.parse(t.entryTime) / 1000) as Time,
+              position: (long ? "belowBar" : "aboveBar") as "belowBar" | "aboveBar",
+              color: long ? UP : DOWN,
+              shape: (long ? "arrowUp" : "arrowDown") as "arrowUp" | "arrowDown",
+              text: `${long ? "LONG" : "SHORT"} ${t.entryPrice.toFixed(5)}`,
+            };
+          })
+          .sort((a, b) => (a.time as number) - (b.time as number));
+        markersRef.current.setMarkers(markers);
+      } catch {
+        /* ignore */
+      }
+    }
+    loadTrades();
+    const id = setInterval(loadTrades, 60_000);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, [pair]);
 
   return (
     <div className="relative h-full w-full">
@@ -149,14 +201,19 @@ export function CandleChart({
         botState={botState}
         onElementClick={onElementClick}
       />
-      {loading && (
-        <div className="absolute top-3 left-3 pointer-events-none">
-          <span className="text-[11px] text-cream-muted px-2.5 py-1 rounded-md inline-flex items-center gap-1.5" style={{ background: "rgba(11,11,12,0.85)" }}>
-            <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "var(--color-rose)" }} />
-            Cargando {pair} {timeframe}…
-          </span>
-        </div>
-      )}
+      <div className="absolute top-3 left-3 pointer-events-none">
+        <span className="text-[11px] text-cream-muted px-2.5 py-1 rounded-md inline-flex items-center gap-1.5" style={{ background: "rgba(11,11,12,0.85)" }}>
+          <span
+            className={`w-1.5 h-1.5 rounded-full ${loading ? "animate-pulse" : ""}`}
+            style={{ background: loading ? "var(--color-rose)" : "var(--color-profit-bright)" }}
+          />
+          {loading
+            ? `Cargando ${pair} ${timeframe}…`
+            : lastUpdate
+              ? `Actualizado hace ${Math.max(0, Math.round((Date.now() - lastUpdate) / 1000))}s`
+              : `${pair} ${timeframe}`}
+        </span>
+      </div>
       {!loading && empty && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <p className="text-xs text-mute px-6 py-3 rounded-md text-center" style={{ background: "rgba(11,11,12,0.8)" }}>

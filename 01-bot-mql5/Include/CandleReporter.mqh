@@ -73,12 +73,13 @@ bool CandleReporter_ReportOne(string symbol, ENUM_TIMEFRAMES tf, int count)
    return Journal_PostJson(CANDLES_API_ENDPOINT, payload, "CANDLES");
 }
 
-// Reporta los 2 simbolos x 6 timeframes con `count` velas cada uno.
-// Retorna true solo si TODOS los POST (12 combos) dieron 2xx.
+// Reporta los 2 simbolos x 5 timeframes con `count` velas cada uno.
+// Retorna true solo si TODOS los POST (10 combos) dieron 2xx.
 bool CandleReporter_ReportAll(int count)
 {
    string         symbols[] = {"EURUSD", "GBPUSD"};
-   ENUM_TIMEFRAMES tfs[]    = {PERIOD_M1, PERIOD_M3, PERIOD_M5, PERIOD_M15, PERIOD_H1, PERIOD_H4};
+   // Fix 2: sin M1 (no se usa; ahorra carga en BD). 2 pares x 5 TF = 10 combos.
+   ENUM_TIMEFRAMES tfs[]    = {PERIOD_M3, PERIOD_M5, PERIOD_M15, PERIOD_H1, PERIOD_H4};
 
    bool allOk = true;
    for(int s = 0; s < ArraySize(symbols); s++)
@@ -102,7 +103,7 @@ void CandleReporter_Tick()
       if(CandleReporter_ReportAll(CANDLES_BACKFILL_COUNT))
       {
          g_candle_backfill_done = true;
-         Print("[CANDLES] Backfill inicial OK (", CANDLES_BACKFILL_COUNT, " velas x 12 combos).");
+         Print("[CANDLES] Backfill inicial OK (", CANDLES_BACKFILL_COUNT, " velas x 10 combos).");
       }
       else
       {
