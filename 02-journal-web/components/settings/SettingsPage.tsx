@@ -39,7 +39,7 @@ type Stats = {
 const SOUNDS_KEY = "sounds_enabled";
 const FOCUS_KEY = "focus_default";
 
-export function SettingsPage() {
+export function SettingsPage({ isOwner }: { isOwner: boolean }) {
   // ──── Profile
   const [profile, setProfile] = useState<Profile | null>(null);
   const [nameDraft, setNameDraft] = useState("");
@@ -140,6 +140,7 @@ export function SettingsPage() {
   }
 
   async function toggleBot() {
+    if (!isOwner) return; // Fase 2.6 — solo OWNER. El server además responde 403.
     setTogglingBot(true);
     try {
       const res = await fetch("/api/bot/status", {
@@ -168,6 +169,7 @@ export function SettingsPage() {
   }
 
   async function disableKillSwitch() {
+    if (!isOwner) return;
     const res = await fetch("/api/bot/kill-switch", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -180,6 +182,7 @@ export function SettingsPage() {
   }
 
   function setConfig(key: string, value: string) {
+    if (!isOwner) return;
     setDraftConfigs((prev) => {
       const next = new Map(prev);
       next.set(key, value);
@@ -188,6 +191,7 @@ export function SettingsPage() {
   }
 
   function resetConfigsToDefault() {
+    if (!isOwner) return;
     const next = new Map<string, string>();
     for (const spec of BOT_CONFIG_SPECS) next.set(spec.key, spec.default);
     setDraftConfigs(next);
@@ -202,6 +206,7 @@ export function SettingsPage() {
   }, [configs, draftConfigs]);
 
   async function saveConfigs() {
+    if (!isOwner) return;
     if (!configChanges.length) return;
     setSavingConfigs(true);
     setConfigMsg(null);
@@ -327,6 +332,28 @@ export function SettingsPage() {
         />
       </Section>
 
+      {/* ───── Lock para no-OWNER (Fase 2.6) ───── */}
+      {!isOwner && (
+        <div
+          className="flex items-start gap-3 px-4 py-3 mb-2"
+          style={{
+            background: "rgba(107, 107, 112, 0.14)",
+            border: "0.5px solid var(--color-graphite)",
+          }}
+        >
+          <AlertOctagon
+            className="h-4 w-4 mt-0.5 shrink-0"
+            strokeWidth={1.8}
+            style={{ color: "var(--color-mute)" }}
+          />
+          <p className="text-xs text-cream-muted leading-relaxed">
+            🔒 Solo el <strong>owner</strong> del bot puede modificar su
+            configuración. Podés ver todo, pero los controles están
+            deshabilitados. Contactá a Sergio.
+          </p>
+        </div>
+      )}
+
       {/* ───── Bot — Estado / Kill switch ───── */}
       <Section title="Bot · Estado" anchor="bot">
         <div
@@ -357,8 +384,8 @@ export function SettingsPage() {
             <button
               type="button"
               onClick={toggleBot}
-              disabled={togglingBot || bot.killSwitch}
-              className="relative shrink-0 rounded-full transition-colors disabled:opacity-50"
+              disabled={togglingBot || bot.killSwitch || !isOwner}
+              className="relative shrink-0 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               style={{
                 width: "52px",
                 height: "26px",
@@ -410,7 +437,8 @@ export function SettingsPage() {
               <button
                 type="button"
                 onClick={disableKillSwitch}
-                className="text-xs uppercase text-cream-muted hover:text-cream"
+                disabled={!isOwner}
+                className="text-xs uppercase text-cream-muted hover:text-cream disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{ letterSpacing: "0.14em" }}
               >
                 Desactivar
@@ -420,7 +448,8 @@ export function SettingsPage() {
             <button
               type="button"
               onClick={() => setShowKillModal(true)}
-              className="w-full inline-flex items-center justify-center gap-2 rounded-md px-4 py-3 text-xs uppercase font-medium transition-all active:scale-[0.98]"
+              disabled={!isOwner}
+              className="w-full inline-flex items-center justify-center gap-2 rounded-md px-4 py-3 text-xs uppercase font-medium transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
               style={{
                 background: "var(--color-rose-deep)",
                 color: "var(--color-cream)",
@@ -464,7 +493,8 @@ export function SettingsPage() {
               <button
                 type="button"
                 onClick={resetConfigsToDefault}
-                className="inline-flex items-center gap-1.5 text-xs uppercase text-cream-muted hover:text-rose transition-colors"
+                disabled={!isOwner}
+                className="inline-flex items-center gap-1.5 text-xs uppercase text-cream-muted hover:text-rose transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{ letterSpacing: "0.14em" }}
               >
                 <RotateCcw className="h-3.5 w-3.5" strokeWidth={1.6} />
@@ -477,7 +507,7 @@ export function SettingsPage() {
                 <button
                   type="button"
                   onClick={saveConfigs}
-                  disabled={!configChanges.length || savingConfigs}
+                  disabled={!configChanges.length || savingConfigs || !isOwner}
                   className="rounded-md px-4 py-2 text-xs uppercase font-medium transition-all active:scale-[0.98] disabled:opacity-50"
                   style={{
                     background: "var(--color-rose)",
