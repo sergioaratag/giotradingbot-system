@@ -195,6 +195,30 @@ model BotConfig {
   updatedAt   DateTime @updatedAt
 }
 
+model BotState {
+  id            String   @id @default(cuid())
+  symbol        String   @unique // "EURUSD" | "GBPUSD"
+  updatedAt     DateTime @updatedAt
+
+  // Contexto HTF / sesión
+  biasH4        String?  // "BULLISH" | "BEARISH" | "NEUTRAL"
+  biasD1        String?
+  killzone      String?  // "LONDON_KZ" | "NY_AM" | "NY_LUNCH" | "SESSION_NO_KZ" | "OUTSIDE"
+
+  // Estado vivo (arrays JSON)
+  fvgs          Json     @default("[]") // [{ tf, side, top, bot, quality, state }]
+  sweeps        Json     @default("[]") // [{ tf, level, type, timestamp }]
+  markers       Json     @default("[]") // [{ type, price, label, tf }]
+  chochState    String?  // "PENDING" | "CONFIRMED" | "NONE"
+
+  // Narración didáctica
+  currentAction String?  // texto corto: "Aguardando killzone NY AM…"
+  reasoning     String?  @db.Text
+  nextStep      String?
+
+  @@index([updatedAt])
+}
+
 model BotEvent {
   id          String   @id @default(cuid())
 
