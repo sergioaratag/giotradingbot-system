@@ -7,6 +7,8 @@ import {
   createSeriesMarkers,
   ColorType,
   CrosshairMode,
+  LineStyle,
+  type IPriceLine,
   type ISeriesMarkersPluginApi,
   type SeriesMarker,
   type IChartApi,
@@ -30,6 +32,10 @@ type Candle = {
 
 const UP = "#34d399";
 const DOWN = "#f87171";
+// Bug #2: colores de vela profesionales/suaves (no fluorescentes). En PR #14
+// pasan a ser configurables por usuario.
+const CANDLE_UP = "#22c55e";
+const CANDLE_DOWN = "#ef4444";
 
 export function CandleChart({
   pair,
@@ -46,12 +52,14 @@ export function CandleChart({
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const markersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
+  const bidLineRef = useRef<IPriceLine | null>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [, bump] = useState(0); // fuerza recomputo del overlay en pan/zoom
   const [empty, setEmpty] = useState(false);
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<number | null>(null);
   const [, tick] = useState(0); // 1s ticker para "actualizado hace Xs"
+  const [drawingActive, setDrawingActive] = useState(false);
 
   const rerenderOverlay = useCallback(() => bump((n) => n + 1), []);
 
@@ -76,12 +84,13 @@ export function CandleChart({
       autoSize: true,
     });
     const series = chart.addSeries(CandlestickSeries, {
-      upColor: UP,
-      downColor: DOWN,
-      borderUpColor: UP,
-      borderDownColor: DOWN,
-      wickUpColor: UP,
-      wickDownColor: DOWN,
+      upColor: CANDLE_UP,
+      downColor: CANDLE_DOWN,
+      borderVisible: true,
+      borderUpColor: CANDLE_UP,
+      borderDownColor: CANDLE_DOWN,
+      wickUpColor: CANDLE_UP,
+      wickDownColor: CANDLE_DOWN,
       // Bug #4: forex a 5 decimales en el eje y en el crosshair.
       priceFormat: { type: "price", precision: 5, minMove: 0.00001 },
     });
@@ -156,6 +165,32 @@ export function CandleChart({
     return () => clearInterval(t);
   }, []);
 
+  // Bug #3: línea de precio bid en vivo (del BotState, que el page refresca cada 3s).
+  useEffect(() => {
+    const s = seriesRef.current;
+    if (!s) return;
+    const bid = botState?.currentBid ?? null;
+    if (bid == null) {
+      if (bidLineRef.current) {
+        s.removePriceLine(bidLineRef.current);
+        bidLineRef.current = null;
+      }
+      return;
+    }
+    if (bidLineRef.current) {
+      bidLineRef.current.applyOptions({ price: bid, title: `Bid ${bid.toFixed(5)}` });
+    } else {
+      bidLineRef.current = s.createPriceLine({
+        price: bid,
+        color: "#a1a1aa",
+        lineWidth: 1,
+        lineStyle: LineStyle.Dashed,
+        axisLabelVisible: true,
+        title: `Bid ${bid.toFixed(5)}`,
+      });
+    }
+  }, [botState?.currentBid]);
+
   // Fix 4: marcas de los trades del bot del par (de la tabla Trade).
   useEffect(() => {
     let alive = true;
@@ -202,6 +237,7 @@ export function CandleChart({
         size={size}
         botState={botState}
         onElementClick={onElementClick}
+        interactive={!drawingActive}
       />
       <DrawingLayer
         chart={chartRef.current}
@@ -209,6 +245,7 @@ export function CandleChart({
         size={size}
         pair={pair}
         timeframe={timeframe}
+        onActiveChange={setDrawingActive}
       />
       <div className="absolute top-3 left-3 pointer-events-none">
         <span className="text-[11px] text-cream-muted px-2.5 py-1 rounded-md inline-flex items-center gap-1.5" style={{ background: "rgba(11,11,12,0.85)" }}>
@@ -240,12 +277,14 @@ function BotOverlay({
   size,
   botState,
   onElementClick,
+  interactive,
 }: {
   chart: IChartApi | null;
   series: ISeriesApi<"Candlestick"> | null;
   size: { w: number; h: number };
   botState: BotStateRow | null;
   onElementClick: (el: BotElement) => void;
+  interactive: boolean;
 }) {
   if (!chart || !series || !botState || size.w === 0) return null;
 
@@ -259,6 +298,8 @@ function BotOverlay({
   };
   const W = size.w;
   const H = size.h;
+  // Mientras se dibuja, el overlay del bot no intercepta clicks (van al chart).
+  const gCls = interactive ? "pointer-events-auto cursor-pointer" : "pointer-events-none";
 
   const fvgs = botState.fvgs ?? [];
   const sweeps = botState.sweeps ?? [];
@@ -278,7 +319,7 @@ function BotOverlay({
         const y = Math.min(yT, yB);
         const h = Math.abs(yT - yB);
         return (
-          <g key={`fvg-${i}`} className="pointer-events-auto cursor-pointer" onClick={() => onElementClick({ kind: "FVG", fvg: f })}>
+          <g key={`fvg-${i}`} className={gCls} onClick={() => onElementClick({ kind: "FVG", fvg: f })}>
             <rect x={left} y={y} width={W - left} height={Math.max(2, h)} fill={bull ? "rgba(52,211,153,0.12)" : "rgba(248,113,113,0.12)"} stroke={color} strokeWidth={1} />
             <text x={left + 6} y={y - 4} fill={color} fontSize={10} fontWeight={500}>
               FVG {bull ? "Alcista" : "Bajista"} {f.top?.toFixed(5)} · Q{f.quality}/10
@@ -294,7 +335,7 @@ function BotOverlay({
         const x = xForIso(s.detectedAt);
         const left = x == null ? 0 : Math.max(0, x);
         return (
-          <g key={`sw-${i}`} className="pointer-events-auto cursor-pointer" onClick={() => onElementClick({ kind: "SWEEP", sweep: s })}>
+          <g key={`sw-${i}`} className={gCls} onClick={() => onElementClick({ kind: "SWEEP", sweep: s })}>
             <line x1={left} y1={y} x2={W} y2={y} stroke="#C9A96E" strokeWidth={1.5} strokeDasharray="6 3" />
             <text x={left + 6} y={y - 4} fill="#C9A96E" fontSize={10}>
               Sweep {s.level} {s.price != null ? `@ ${s.price.toFixed(5)}` : ""}
@@ -309,7 +350,7 @@ function BotOverlay({
         const x = xForIso(m.time);
         if (y == null || x == null) return null;
         return (
-          <g key={`ch-${i}`} className="pointer-events-auto cursor-pointer" onClick={() => onElementClick({ kind: "CHOCH", marker: m })}>
+          <g key={`ch-${i}`} className={gCls} onClick={() => onElementClick({ kind: "CHOCH", marker: m })}>
             <circle cx={x} cy={y} r={5} fill="#a855f7" />
             <text x={x + 10} y={y + 3} fill="#a855f7" fontSize={10}>
               CHoCH {m.price != null ? `@ ${m.price.toFixed(5)}` : ""}

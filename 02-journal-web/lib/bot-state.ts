@@ -33,6 +33,8 @@ export type BotStateRow = {
   biasH4: string | null;
   biasD1: string | null;
   killzone: string | null;
+  currentBid: number | null;
+  currentAsk: number | null;
   fvgs: FvgState[];
   sweeps: SweepState[];
   markers: BotMarker[];

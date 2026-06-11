@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { IChartApi, ISeriesApi, Time, UTCTimestamp } from "lightweight-charts";
+import type { IChartApi, ISeriesApi, MouseEventParams, UTCTimestamp } from "lightweight-charts";
 import { DrawingToolbar } from "./DrawingToolbar";
 import {
   type Drawing,
@@ -33,18 +33,44 @@ export function DrawingLayer({
   size,
   pair,
   timeframe,
+  onActiveChange,
 }: {
   chart: IChartApi | null;
   series: ISeriesApi<"Candlestick"> | null;
   size: { w: number; h: number };
   pair: string;
   timeframe: string;
+  onActiveChange?: (active: boolean) => void;
 }) {
   const [tool, setTool] = useState<Tool>("cursor");
   const [drawings, setDrawings] = useState<Drawing[]>([]);
   const [pending, setPending] = useState<Pt[]>([]);
   const [posDraft, setPosDraft] = useState<PosDraft | null>(null);
-  const captureRef = useRef<HTMLDivElement>(null);
+
+  // Refs para leer el estado más reciente dentro del handler de subscribeClick.
+  const toolRef = useRef(tool);
+  toolRef.current = tool;
+  const pendingRef = useRef(pending);
+  pendingRef.current = pending;
+
+  // Avisar al chart cuándo hay una herramienta activa (para desactivar los
+  // clicks del overlay del bot mientras se dibuja).
+  useEffect(() => {
+    onActiveChange?.(tool !== "cursor");
+  }, [tool, onActiveChange]);
+
+  // Esc cancela la herramienta / puntos en progreso.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setTool("cursor");
+        setPending([]);
+        setPosDraft(null);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   const refetch = useCallback(async () => {
     try {
@@ -83,33 +109,47 @@ export function DrawingLayer({
     await refetch();
   }
 
-  function handleClick(e: React.MouseEvent) {
-    if (tool === "cursor" || !chart || !series) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    const price = series.coordinateToPrice(y);
-    const time = chart.timeScale().coordinateToTime(x as never);
-    if (price == null || time == null) return;
-    const pt: Pt = { time: Number(time), price: Number(price) };
-    const pts = [...pending, pt];
-    if (pts.length < TOOL_CLICKS[tool]) {
+  // Coloca un punto al hacer click (time/price ya resueltos por subscribeClick).
+  function placePoint(time: number, price: number) {
+    const t = toolRef.current;
+    if (t === "cursor") return;
+    const pts = [...pendingRef.current, { time, price }];
+    if (pts.length < TOOL_CLICKS[t]) {
       setPending(pts);
       return;
     }
-    // Herramienta completa.
-    if (tool === "long" || tool === "short") {
-      setPosDraft({ tool, entry: pts[0].price, sl: pts[1].price, tp: pts[2].price, time: pts[0].time, volume: 0.1 });
+    if (t === "long" || t === "short") {
+      setPosDraft({ tool: t, entry: pts[0].price, sl: pts[1].price, tp: pts[2].price, time: pts[0].time, volume: 0.1 });
       setPending([]);
       return;
     }
-    if (tool === "hline") void createDrawing({ type: "HORIZONTAL_LINE", geometry: { price: pts[0].price }, color: GOLD });
-    else if (tool === "vline") void createDrawing({ type: "VERTICAL_LINE", geometry: { time: pts[0].time }, color: GOLD });
-    else if (tool === "trend") void createDrawing({ type: "TRENDLINE", geometry: { points: pts }, color: GOLD });
-    else if (tool === "rect") void createDrawing({ type: "RECTANGLE", geometry: { points: pts }, color: GOLD });
+    if (t === "hline") void createDrawing({ type: "HORIZONTAL_LINE", geometry: { price: pts[0].price }, color: GOLD });
+    else if (t === "vline") void createDrawing({ type: "VERTICAL_LINE", geometry: { time: pts[0].time }, color: GOLD });
+    else if (t === "trend") void createDrawing({ type: "TRENDLINE", geometry: { points: pts }, color: GOLD });
+    else if (t === "rect") void createDrawing({ type: "RECTANGLE", geometry: { points: pts }, color: GOLD });
     setPending([]);
     setTool("cursor");
   }
+
+  // subscribeClick: patrón oficial de Lightweight Charts. Da param.time +
+  // param.point directos, sin la ambigüedad de coordinateToTime sobre un div.
+  useEffect(() => {
+    if (!chart || !series) return;
+    const handler = (param: MouseEventParams) => {
+      if (toolRef.current === "cursor" || !param.point) return;
+      const price = series.coordinateToPrice(param.point.y);
+      let time: number | null = param.time != null ? Number(param.time) : null;
+      if (time == null) {
+        const ct = chart.timeScale().coordinateToTime(param.point.x);
+        time = ct != null ? Number(ct) : null;
+      }
+      if (price == null || time == null) return;
+      placePoint(time, price);
+    };
+    chart.subscribeClick(handler);
+    return () => chart.unsubscribeClick(handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chart, series, pair, timeframe]);
 
   async function savePosition(asTrade: boolean) {
     if (!posDraft) return;
@@ -152,21 +192,22 @@ export function DrawingLayer({
     <>
       <DrawingToolbar active={tool} onSelect={setTool} onClear={clearAll} />
 
-      {/* Capa de captura (solo activa con una herramienta seleccionada) */}
+      {/* Hint mientras se dibuja */}
       {tool !== "cursor" && (
-        <div
-          ref={captureRef}
-          onClick={handleClick}
-          className="absolute inset-0 z-10"
-          style={{ cursor: "crosshair" }}
-        />
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
+          <span className="text-[11px] px-2.5 py-1 rounded-md" style={{ background: "rgba(11,11,12,0.9)", color: "var(--color-gold)" }}>
+            {tool === "long" || tool === "short"
+              ? `Click ${pending.length + 1}/3 — ${["entrada", "stop loss", "take profit"][pending.length]}`
+              : `Click ${pending.length + 1}/${TOOL_CLICKS[tool]} · Esc cancela`}
+          </span>
+        </div>
       )}
 
       {/* Dibujos del usuario */}
       {chart && series && W > 0 && (
         <svg className="absolute inset-0 pointer-events-none" width={W} height={H}>
           {drawings.map((d) => (
-            <DrawingShape key={d.id} d={d} W={W} H={H} yOf={yOf} xOf={xOf} onDelete={() => deleteOne(d.id)} />
+            <DrawingShape key={d.id} d={d} W={W} H={H} yOf={yOf} xOf={xOf} interactive={tool === "cursor"} onDelete={() => deleteOne(d.id)} />
           ))}
           {/* preview de puntos en progreso */}
           {pending.map((p, i) => {
@@ -200,6 +241,7 @@ function DrawingShape({
   H,
   yOf,
   xOf,
+  interactive,
   onDelete,
 }: {
   d: Drawing;
@@ -207,11 +249,12 @@ function DrawingShape({
   H: number;
   yOf: (p: number) => number | null;
   xOf: (t: number) => number | null;
+  interactive: boolean;
   onDelete: () => void;
 }) {
   const del = (
     <circle
-      className="pointer-events-auto cursor-pointer"
+      className={interactive ? "pointer-events-auto cursor-pointer" : "pointer-events-none"}
       r={5}
       fill="rgba(11,11,12,0.9)"
       stroke="var(--color-rose)"

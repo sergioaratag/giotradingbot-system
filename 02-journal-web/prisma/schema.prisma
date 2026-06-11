@@ -261,6 +261,10 @@ model BotState {
   biasD1        String?
   killzone      String?  // "LONDON_KZ" | "NY_AM" | "NY_LUNCH" | "SESSION_NO_KZ" | "OUTSIDE"
 
+  // Precio en vivo (Bug #3): el EA lo manda cada 5s; el chart dibuja la línea bid.
+  currentBid    Float?
+  currentAsk    Float?
+
   // Estado vivo (arrays JSON)
   fvgs          Json     @default("[]") // [{ tf, side, top, bot, quality, state }]
   sweeps        Json     @default("[]") // [{ tf, level, type, timestamp }]
