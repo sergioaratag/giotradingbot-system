@@ -1,11 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
+import { Camera, Check } from "lucide-react";
 import { CandleChart } from "@/components/charts/CandleChart";
 import { BotLivePanel } from "@/components/charts/BotLivePanel";
 import { BotElementModal } from "@/components/charts/BotElementModal";
 import type { BotStateRow } from "@/lib/bot-state";
 import type { BotElement } from "@/lib/ict-modals";
+import type { Drawing } from "@/lib/drawings";
+import { buildAnalysisMarkdown, buildAnalysisTitle } from "@/lib/analysis-snapshot";
 
 const SYMBOLS = [
   { pair: "EURUSD" as const, label: "EUR/USD" },
@@ -41,6 +45,36 @@ export default function ChartPage() {
   }, []);
 
   const current = states.find((s) => s.symbol === pair) ?? null;
+
+  const [savingAnalysis, setSavingAnalysis] = useState(false);
+  const [savedAnalysis, setSavedAnalysis] = useState(false);
+
+  // Feature 4 (6B): snapshot del análisis (contexto del bot + mis dibujos) a /notes.
+  async function saveAnalysis() {
+    setSavingAnalysis(true);
+    setSavedAnalysis(false);
+    try {
+      const dRes = await fetch(`/api/drawings?pair=${pair}&timeframe=${timeframe}`, { cache: "no-store" });
+      const drawings: Drawing[] = dRes.ok ? (await dRes.json()).drawings ?? [] : [];
+      const content = buildAnalysisMarkdown(pair, timeframe, current, drawings);
+      const res = await fetch("/api/notes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: buildAnalysisTitle(pair, timeframe),
+          content,
+          category: "ANÁLISIS",
+          tags: ["chart", pair.toLowerCase()],
+        }),
+      });
+      if (res.ok) {
+        setSavedAnalysis(true);
+        setTimeout(() => setSavedAnalysis(false), 4000);
+      }
+    } finally {
+      setSavingAnalysis(false);
+    }
+  }
 
   return (
     <div className="-mx-8 -my-8 flex flex-col h-[calc(100vh-3.5rem)] bg-onyx">
@@ -83,6 +117,29 @@ export default function ChartPage() {
               </button>
             ))}
           </div>
+
+          {/* Guardar análisis a /notes */}
+          {savedAnalysis ? (
+            <Link
+              href="/notes"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded font-medium"
+              style={{ background: "rgba(52,211,153,0.15)", color: "#34d399" }}
+            >
+              <Check className="h-3.5 w-3.5" strokeWidth={2} />
+              Guardado · ver en Notas
+            </Link>
+          ) : (
+            <button
+              onClick={saveAnalysis}
+              disabled={savingAnalysis}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded font-medium transition-colors disabled:opacity-50"
+              style={{ background: "var(--color-coal)", color: "var(--color-cream)", border: "0.5px solid var(--color-graphite)" }}
+              title="Guarda el contexto del bot + tus dibujos como nota en /notes"
+            >
+              <Camera className="h-3.5 w-3.5" strokeWidth={1.7} />
+              {savingAnalysis ? "Guardando…" : "Guardar análisis"}
+            </button>
+          )}
         </div>
       </div>
 
