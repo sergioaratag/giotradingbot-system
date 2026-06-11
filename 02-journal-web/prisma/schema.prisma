@@ -19,6 +19,7 @@ model User {
   tasks         Task[]
   notes         Note[]
   vaultEntries  VaultEntry[]
+  drawings      Drawing[]
 }
 
 model VaultEntry {
@@ -193,6 +194,45 @@ model BotConfig {
   value       String   @db.Text
   description String?
   updatedAt   DateTime @updatedAt
+}
+
+enum DrawingType {
+  HORIZONTAL_LINE
+  VERTICAL_LINE
+  TRENDLINE
+  RECTANGLE
+  TEXT
+  LONG_POSITION
+  SHORT_POSITION
+}
+
+model Drawing {
+  id         String      @id @default(cuid())
+  userId     String
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  pair       String      // "EURUSD" | "GBPUSD"
+  timeframe  String?     // null = visible en todos los TFs
+  type       DrawingType
+
+  // Geometría flexible: { points: [{time, price}], text, ... }
+  geometry   Json        @default("{}")
+
+  // Para LONG_POSITION / SHORT_POSITION
+  entryPrice Float?
+  slPrice    Float?
+  tpPrice    Float?
+  volume     Float?
+  riskUsd    Float?
+  rRatio     Float?
+
+  color      String      @default("#C9A96E")
+  label      String?
+
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  @@index([userId, pair])
 }
 
 model Candle {
