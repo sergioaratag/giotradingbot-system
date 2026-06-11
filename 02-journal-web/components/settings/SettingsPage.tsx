@@ -21,6 +21,7 @@ import { useBotStatus } from "@/hooks/useBotStatus";
 import { playSound } from "@/lib/sounds";
 import { ChangePasswordModal } from "./ChangePasswordModal";
 import { KillSwitchModal } from "./KillSwitchModal";
+import { ChartThemeSettings } from "./ChartThemeSettings";
 import { ResetDataModal } from "./ResetDataModal";
 
 type ConfigRow = { key: string; value: string };
@@ -331,6 +332,9 @@ export function SettingsPage({ isOwner }: { isOwner: boolean }) {
           disabled={!appearanceMounted}
         />
       </Section>
+
+      {/* ───── Apariencia del Chart (PR #14) ───── */}
+      <ChartThemeSettings />
 
       {/* ───── Lock para no-OWNER (Fase 2.6) ───── */}
       {!isOwner && (
