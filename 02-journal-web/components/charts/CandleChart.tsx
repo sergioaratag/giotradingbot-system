@@ -17,6 +17,7 @@ import {
 import type { BotStateRow } from "@/lib/bot-state";
 import type { BotElement } from "@/lib/ict-modals";
 import { killzoneWindowsForRange } from "@/lib/killzones";
+import { DrawingLayer } from "./DrawingLayer";
 
 type Candle = {
   time: number;
@@ -201,6 +202,13 @@ export function CandleChart({
         size={size}
         botState={botState}
         onElementClick={onElementClick}
+      />
+      <DrawingLayer
+        chart={chartRef.current}
+        series={seriesRef.current}
+        size={size}
+        pair={pair}
+        timeframe={timeframe}
       />
       <div className="absolute top-3 left-3 pointer-events-none">
         <span className="text-[11px] text-cream-muted px-2.5 py-1 rounded-md inline-flex items-center gap-1.5" style={{ background: "rgba(11,11,12,0.85)" }}>
