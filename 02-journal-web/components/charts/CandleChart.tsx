@@ -326,7 +326,6 @@ export function CandleChart({
       <DrawingLayer
         chart={chartRef.current}
         series={seriesRef.current}
-        size={size}
         pair={pair}
         timeframe={timeframe}
         onActiveChange={setDrawingActive}
