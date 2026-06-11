@@ -1,16 +1,15 @@
 "use client";
 
-import { MousePointer2, Minus, TrendingUp, Square, ArrowUp, ArrowDown, Trash2 } from "lucide-react";
+import { MousePointer2, Minus, TrendingUp, Square, Trash2 } from "lucide-react";
 import type { Tool } from "@/lib/drawings";
 
+// PR #16: scope acotado — cursor + 3 herramientas. El resto (vline, óvalo,
+// texto, posiciones Long/Short, etc.) va en PRs siguientes.
 const TOOLS: { id: Tool; label: string; icon: React.ComponentType<{ className?: string; strokeWidth?: number }>; rotate?: boolean }[] = [
   { id: "cursor", label: "Cursor", icon: MousePointer2 },
   { id: "hline", label: "Línea horizontal", icon: Minus },
-  { id: "vline", label: "Línea vertical", icon: Minus, rotate: true },
   { id: "trend", label: "Línea de tendencia", icon: TrendingUp },
   { id: "rect", label: "Rectángulo", icon: Square },
-  { id: "long", label: "Posición Long (entry · SL · TP)", icon: ArrowUp },
-  { id: "short", label: "Posición Short (entry · SL · TP)", icon: ArrowDown },
 ];
 
 export function DrawingToolbar({
