@@ -160,6 +160,9 @@ void BotState_Report(string symbol)
    body += "\"biasH4\":\"" + Journal_BiasStr(bias) + "\",";
    body += "\"killzone\":\"" + Journal_KillzoneStr(kz) + "\",";
    body += "\"chochState\":\"" + chochState + "\",";
+   // Bug #3: precio en vivo para la línea bid del chart.
+   body += "\"currentBid\":" + DoubleToString(SymbolInfoDouble(symbol, SYMBOL_BID), 5) + ",";
+   body += "\"currentAsk\":" + DoubleToString(SymbolInfoDouble(symbol, SYMBOL_ASK), 5) + ",";
    body += "\"fvgs\":[" + fvgs + "],";
    body += "\"sweeps\":[" + sweeps + "],";
    body += "\"markers\":[" + markers + "],";

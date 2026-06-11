@@ -19,6 +19,9 @@ function asArray(v: unknown): Prisma.InputJsonValue {
 function asStr(v: unknown): string | null {
   return typeof v === "string" && v.length > 0 ? v : null;
 }
+function asNum(v: unknown): number | null {
+  return v != null && Number.isFinite(Number(v)) ? Number(v) : null;
+}
 
 export async function POST(req: Request) {
   const apiKey = req.headers.get("x-bot-api-key");
@@ -47,6 +50,8 @@ export async function POST(req: Request) {
     biasH4: asStr(body.biasH4),
     biasD1: asStr(body.biasD1),
     killzone: asStr(body.killzone),
+    currentBid: asNum(body.currentBid),
+    currentAsk: asNum(body.currentAsk),
     fvgs: asArray(body.fvgs),
     sweeps: asArray(body.sweeps),
     markers: asArray(body.markers),
