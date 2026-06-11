@@ -87,20 +87,31 @@ export class DrawingsPrimitive implements ISeriesPrimitive<Time> {
     const pv = this._preview;
     if (pv && pv.points.length) {
       const type =
-        pv.tool === "hline" ? "HORIZONTAL_LINE" : pv.tool === "trend" ? "TRENDLINE" : pv.tool === "rect" ? "RECTANGLE" : null;
-      if (type && pv.points.length >= (type === "HORIZONTAL_LINE" ? 1 : 2)) {
+        pv.tool === "hline"
+          ? "HORIZONTAL_LINE"
+          : pv.tool === "trend"
+            ? "TRENDLINE"
+            : pv.tool === "rect"
+              ? "RECTANGLE"
+              : pv.tool === "freehand"
+                ? "FREEHAND"
+                : null;
+      const minPts = type === "HORIZONTAL_LINE" ? 1 : 2;
+      if (type && pv.points.length >= minPts) {
         const geom = type === "HORIZONTAL_LINE" ? { price: pv.points[0].price } : { points: pv.points };
         this.drawShape(c, W, H, type, geom, PREVIEW_COLOR, true);
       }
-      // puntos colocados
-      for (const p of pv.points) {
-        const x = this.xOf(p.time);
-        const y = this.yOf(p.price);
-        if (x != null && y != null) {
-          c.beginPath();
-          c.arc(x, y, 3.5, 0, Math.PI * 2);
-          c.fillStyle = PREVIEW_COLOR;
-          c.fill();
+      // puntos colocados (no para freehand, que son muchos).
+      if (pv.tool !== "freehand") {
+        for (const p of pv.points) {
+          const x = this.xOf(p.time);
+          const y = this.yOf(p.price);
+          if (x != null && y != null) {
+            c.beginPath();
+            c.arc(x, y, 3.5, 0, Math.PI * 2);
+            c.fillStyle = PREVIEW_COLOR;
+            c.fill();
+          }
         }
       }
     }
@@ -146,6 +157,23 @@ export class DrawingsPrimitive implements ISeriesPrimitive<Time> {
         c.fillRect(x, y, w, h);
         c.strokeRect(x, y, w, h);
       }
+    } else if (type === "FREEHAND" && geom.points && geom.points.length >= 2) {
+      c.lineJoin = "round";
+      c.lineCap = "round";
+      let started = false;
+      c.beginPath();
+      for (const p of geom.points) {
+        const x = this.xOf(p.time);
+        const y = this.yOf(p.price);
+        if (x == null || y == null) continue;
+        if (!started) {
+          c.moveTo(x, y);
+          started = true;
+        } else {
+          c.lineTo(x, y);
+        }
+      }
+      if (started) c.stroke();
     }
     c.restore();
   }

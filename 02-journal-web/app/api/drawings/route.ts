@@ -12,6 +12,7 @@ const TYPES: DrawingType[] = [
   "TRENDLINE",
   "RECTANGLE",
   "TEXT",
+  "FREEHAND",
   "LONG_POSITION",
   "SHORT_POSITION",
 ];

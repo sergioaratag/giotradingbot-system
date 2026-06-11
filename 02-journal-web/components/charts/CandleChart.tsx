@@ -73,7 +73,6 @@ export function CandleChart({
   const [empty, setEmpty] = useState(false);
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<number | null>(null);
-  const [, tick] = useState(0); // 1s ticker para "actualizado hace Xs"
   const [drawingActive, setDrawingActive] = useState(false);
 
   const rerenderOverlay = useCallback(() => bump((n) => n + 1), []);
@@ -243,11 +242,6 @@ export function CandleChart({
     };
   }, [pair, timeframe, rerenderOverlay]);
 
-  // Fix 3: ticker de 1s para mostrar "actualizado hace Xs".
-  useEffect(() => {
-    const t = setInterval(() => tick((n) => n + 1), 1000);
-    return () => clearInterval(t);
-  }, []);
 
   // Bug #3: línea de precio bid en vivo (del BotState, que el page refresca cada 3s).
   useEffect(() => {
@@ -330,19 +324,7 @@ export function CandleChart({
         timeframe={timeframe}
         onActiveChange={setDrawingActive}
       />
-      <div className="absolute top-3 left-3 pointer-events-none">
-        <span className="text-[11px] text-cream-muted px-2.5 py-1 rounded-md inline-flex items-center gap-1.5" style={{ background: "rgba(11,11,12,0.85)" }}>
-          <span
-            className={`w-1.5 h-1.5 rounded-full ${loading ? "animate-pulse" : ""}`}
-            style={{ background: loading ? "var(--color-rose)" : "var(--color-profit-bright)" }}
-          />
-          {loading
-            ? `Cargando ${pair} ${timeframe}…`
-            : lastUpdate
-              ? `Actualizado hace ${Math.max(0, Math.round((Date.now() - lastUpdate) / 1000))}s`
-              : `${pair} ${timeframe}`}
-        </span>
-      </div>
+      <ChartStatusBadge loading={loading} pair={pair} timeframe={timeframe} lastUpdate={lastUpdate} />
       {!loading && empty && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <p className="text-xs text-mute px-6 py-3 rounded-md text-center" style={{ background: "rgba(11,11,12,0.8)" }}>
@@ -350,6 +332,40 @@ export function CandleChart({
           </p>
         </div>
       )}
+    </div>
+  );
+}
+
+// PR #17: badge con su PROPIO ticker de 1s → no re-renderiza el chart/overlays.
+function ChartStatusBadge({
+  loading,
+  pair,
+  timeframe,
+  lastUpdate,
+}: {
+  loading: boolean;
+  pair: string;
+  timeframe: string;
+  lastUpdate: number | null;
+}) {
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => tick((n) => n + 1), 1000);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <div className="absolute top-3 left-3 pointer-events-none">
+      <span className="text-[11px] text-cream-muted px-2.5 py-1 rounded-md inline-flex items-center gap-1.5" style={{ background: "rgba(11,11,12,0.85)" }}>
+        <span
+          className={`w-1.5 h-1.5 rounded-full ${loading ? "animate-pulse" : ""}`}
+          style={{ background: loading ? "var(--color-rose)" : "var(--color-profit-bright)" }}
+        />
+        {loading
+          ? `Cargando ${pair} ${timeframe}…`
+          : lastUpdate
+            ? `Actualizado hace ${Math.max(0, Math.round((Date.now() - lastUpdate) / 1000))}s`
+            : `${pair} ${timeframe}`}
+      </span>
     </div>
   );
 }
