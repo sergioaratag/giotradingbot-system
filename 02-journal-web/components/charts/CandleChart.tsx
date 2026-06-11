@@ -16,7 +16,7 @@ import {
 } from "lightweight-charts";
 import type { BotStateRow } from "@/lib/bot-state";
 import type { BotElement } from "@/lib/ict-modals";
-import { killzoneWindowUnix } from "@/lib/killzones";
+import { killzoneWindowsForRange } from "@/lib/killzones";
 
 type Candle = {
   time: number;
@@ -194,6 +194,7 @@ export function CandleChart({
   return (
     <div className="relative h-full w-full">
       <div ref={containerRef} className="h-full w-full" />
+      <KillzoneZones chart={chartRef.current} size={size} />
       <BotOverlay
         chart={chartRef.current}
         series={seriesRef.current}
@@ -255,26 +256,8 @@ function BotOverlay({
   const sweeps = botState.sweeps ?? [];
   const markers = (botState.markers ?? []).filter((m) => m.type === "CHOCH");
 
-  const nowUnix = Math.floor(Date.now() / 1000);
-  const kzWin = killzoneWindowUnix(botState.killzone, nowUnix);
-
   return (
     <svg className="absolute inset-0 pointer-events-none" width={W} height={H}>
-      {/* Killzone — banda de fondo */}
-      {kzWin &&
-        (() => {
-          const x1 = chart.timeScale().timeToCoordinate(kzWin.start as Time) ?? 0;
-          const x2 = chart.timeScale().timeToCoordinate(kzWin.end as Time) ?? W;
-          const left = Math.max(0, Math.min(x1, x2));
-          const right = Math.min(W, Math.max(x1, x2));
-          if (right <= left) return null;
-          return (
-            <g className="pointer-events-auto cursor-pointer" onClick={() => onElementClick({ kind: "KILLZONE", name: botState.killzone })}>
-              <rect x={left} y={0} width={right - left} height={H} fill="rgba(201,169,110,0.06)" stroke="rgba(201,169,110,0.25)" strokeDasharray="4 4" />
-            </g>
-          );
-        })()}
-
       {/* FVGs — rectángulos */}
       {fvgs.map((f, i) => {
         const yT = yFor(f.top);
@@ -323,6 +306,42 @@ function BotOverlay({
             <text x={x + 10} y={y + 3} fill="#a855f7" fontSize={10}>
               CHoCH {m.price != null ? `@ ${m.price.toFixed(5)}` : ""}
             </text>
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+// Feature 1 (6B): bandas de killzones (Londres/NY AM/NY Lunch) en el rango
+// visible, en todos los timeframes. DST-correcto vía lib/killzones.
+function KillzoneZones({ chart, size }: { chart: IChartApi | null; size: { w: number; h: number } }) {
+  if (!chart || size.w === 0) return null;
+  const range = chart.timeScale().getVisibleRange();
+  if (!range) return null;
+  const from = range.from as UTCTimestamp;
+  const to = range.to as UTCTimestamp;
+  const bands = killzoneWindowsForRange(from, to);
+  const W = size.w;
+  const H = size.h;
+  const xAt = (t: number) => chart.timeScale().timeToCoordinate(t as UTCTimestamp);
+
+  return (
+    <svg className="absolute inset-0 pointer-events-none" width={W} height={H}>
+      {bands.map((b, i) => {
+        const x1 = xAt(b.start);
+        const x2 = xAt(b.end);
+        const left = Math.max(0, Math.min(x1 ?? 0, x2 ?? W));
+        const right = Math.min(W, Math.max(x1 ?? 0, x2 ?? W));
+        if (right <= left) return null;
+        return (
+          <g key={`kz-${i}`}>
+            <rect x={left} y={0} width={right - left} height={H} fill={b.color.fill} stroke={b.color.stroke} strokeDasharray="3 3" />
+            {right - left > 42 && (
+              <text x={left + 5} y={13} fill={b.color.stroke} fontSize={9} style={{ letterSpacing: "0.04em" }}>
+                {b.label}
+              </text>
+            )}
           </g>
         );
       })}
