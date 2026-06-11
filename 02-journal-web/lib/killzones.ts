@@ -113,6 +113,47 @@ export function killzoneWindowUnix(
   };
 }
 
+// Feature 1 (6B): colores de cada killzone para las bandas del chart.
+export const KILLZONE_COLORS: Record<Killzone["id"], { fill: string; stroke: string }> = {
+  LDN: { fill: "rgba(96,165,250,0.07)", stroke: "rgba(96,165,250,0.32)" }, // azul/celeste
+  NY_AM: { fill: "rgba(248,113,113,0.07)", stroke: "rgba(248,113,113,0.32)" }, // rosa/rojo claro
+  NY_LUNCH: { fill: "rgba(140,140,150,0.08)", stroke: "rgba(140,140,150,0.32)" }, // gris
+};
+
+// Ventana [start,end] en segundos Unix de una killzone para el día del `anchor`.
+function windowForKz(kz: Killzone, anchorUnix: number): { start: number; end: number } {
+  const { totalMin } = nyParts(new Date(anchorUnix * 1000));
+  return {
+    start: anchorUnix + (kz.startMin - totalMin) * 60,
+    end: anchorUnix + (kz.endMin - totalMin) * 60,
+  };
+}
+
+export type KillzoneBand = {
+  id: Killzone["id"];
+  label: string;
+  color: { fill: string; stroke: string };
+  start: number;
+  end: number;
+};
+
+// Todas las ocurrencias de killzones que solapan el rango visible [from,to]
+// (en segundos Unix). Sirve para pintar las bandas en TODOS los timeframes.
+export function killzoneWindowsForRange(fromUnix: number, toUnix: number): KillzoneBand[] {
+  const DAY = 86400;
+  const out: KillzoneBand[] = [];
+  // Anclar a mediodía UTC de cada día (cae dentro del mismo día NY que las KZ).
+  for (let t = Math.floor(fromUnix / DAY) * DAY - DAY + 12 * 3600; t <= toUnix + DAY; t += DAY) {
+    for (const kz of KILLZONES) {
+      const w = windowForKz(kz, t);
+      if (w.end >= fromUnix && w.start <= toUnix) {
+        out.push({ id: kz.id, label: kz.label, color: KILLZONE_COLORS[kz.id], start: w.start, end: w.end });
+      }
+    }
+  }
+  return out;
+}
+
 export function killzoneLabelEs(name: string | null | undefined): string {
   switch (name) {
     case "LONDON_KZ":
