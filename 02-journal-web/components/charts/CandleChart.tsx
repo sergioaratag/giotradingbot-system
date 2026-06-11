@@ -15,6 +15,7 @@ import {
   type SeriesMarker,
   type IChartApi,
   type ISeriesApi,
+  type Logical,
   type Time,
   type UTCTimestamp,
 } from "lightweight-charts";
@@ -101,7 +102,8 @@ export function CandleChart({
         horzLine: { color: "#758696", style: LineStyle.Dashed, labelBackgroundColor: "#9598a1" },
       },
       timeScale: {
-        barSpacing: 8,
+        barSpacing: 12,
+        minBarSpacing: 6,
         rightOffset: 12,
         fixLeftEdge: false,
         fixRightEdge: false,
@@ -209,7 +211,20 @@ export function CandleChart({
             close: c.close,
           })),
         );
-        if (first) chartRef.current?.timeScale().fitContent();
+        // PR #15: en el PRIMER load de cada par/TF, encuadrar las últimas ~80
+        // velas (bodies anchos). Nunca en los refetch (no resetea zoom/pan del
+        // usuario). Si hay menos de 80, fitContent como fallback.
+        if (first) {
+          const ts = chartRef.current?.timeScale();
+          const total = data.candles.length;
+          if (ts) {
+            if (total >= 80) {
+              ts.setVisibleLogicalRange({ from: (total - 80) as Logical, to: (total + 8) as Logical });
+            } else {
+              ts.fitContent();
+            }
+          }
+        }
         if (alive) setLastUpdate(Date.now()); // Fix 3: marca de actualización
         rerenderOverlay();
       } catch {
