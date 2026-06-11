@@ -12,6 +12,7 @@ model User {
   passwordHash  String
   name          String?
   role          UserRole  @default(MEMBER)
+  chartTheme    Json?     // PR #14: paleta del chart personalizada por usuario
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
