@@ -5,9 +5,11 @@ import {
   createChart,
   CandlestickSeries,
   createSeriesMarkers,
+  createTextWatermark,
   ColorType,
   CrosshairMode,
   LineStyle,
+  PriceScaleMode,
   type IPriceLine,
   type ISeriesMarkersPluginApi,
   type SeriesMarker,
@@ -19,6 +21,7 @@ import {
 import type { BotStateRow } from "@/lib/bot-state";
 import type { BotElement } from "@/lib/ict-modals";
 import { killzoneWindowsForRange } from "@/lib/killzones";
+import { type ChartTheme, DEFAULT_CHART_THEME, hexToRgba } from "@/lib/chart-theme";
 import { DrawingLayer } from "./DrawingLayer";
 
 type Candle = {
@@ -32,21 +35,32 @@ type Candle = {
 
 const UP = "#34d399";
 const DOWN = "#f87171";
-// Bug #2: colores de vela profesionales/suaves (no fluorescentes). En PR #14
-// pasan a ser configurables por usuario.
-const CANDLE_UP = "#22c55e";
-const CANDLE_DOWN = "#ef4444";
+
+// PR #14: formato de tiempo en español (dd MMM HH:mm) para crosshair/labels.
+const TIME_FMT = new Intl.DateTimeFormat("es-AR", {
+  day: "2-digit",
+  month: "short",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
+function fmtTime(t: Time): string {
+  const sec = typeof t === "number" ? t : 0;
+  return TIME_FMT.format(new Date(sec * 1000));
+}
 
 export function CandleChart({
   pair,
   timeframe,
   botState,
   onElementClick,
+  theme = DEFAULT_CHART_THEME,
 }: {
   pair: "EURUSD" | "GBPUSD";
   timeframe: string;
   botState: BotStateRow | null;
   onElementClick: (el: BotElement) => void;
+  theme?: ChartTheme;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -69,32 +83,63 @@ export function CandleChart({
     if (!el) return;
 
     const chart = createChart(el, {
+      // PR #14: look TradingView dark.
       layout: {
-        background: { type: ColorType.Solid, color: "#0b0b0c" },
-        textColor: "#8a8a90",
-        fontSize: 11,
+        background: { type: ColorType.Solid, color: theme.background },
+        textColor: "#d1d4dc",
+        fontSize: 12,
+        fontFamily: "Trebuchet MS, Arial, sans-serif",
+        attributionLogo: false,
       },
       grid: {
-        vertLines: { color: "rgba(63,63,70,0.25)" },
-        horzLines: { color: "rgba(63,63,70,0.25)" },
+        vertLines: { color: theme.grid, style: LineStyle.Solid },
+        horzLines: { color: theme.grid, style: LineStyle.Solid },
       },
-      crosshair: { mode: CrosshairMode.Normal },
-      timeScale: { timeVisible: true, secondsVisible: false, borderColor: "#3f3f46" },
-      rightPriceScale: { borderColor: "#3f3f46" },
+      crosshair: {
+        mode: CrosshairMode.Normal,
+        vertLine: { color: "#758696", style: LineStyle.Dashed, labelBackgroundColor: "#9598a1" },
+        horzLine: { color: "#758696", style: LineStyle.Dashed, labelBackgroundColor: "#9598a1" },
+      },
+      timeScale: {
+        barSpacing: 8,
+        rightOffset: 12,
+        fixLeftEdge: false,
+        fixRightEdge: false,
+        lockVisibleTimeRangeOnResize: true,
+        rightBarStaysOnScroll: true,
+        borderVisible: true,
+        borderColor: "#2a2e39",
+        timeVisible: true,
+        secondsVisible: false,
+      },
+      rightPriceScale: {
+        autoScale: true,
+        mode: PriceScaleMode.Normal,
+        alignLabels: true,
+        borderVisible: true,
+        borderColor: "#2a2e39",
+        scaleMargins: { top: 0.1, bottom: 0.1 },
+        entireTextOnly: true,
+      },
+      localization: { locale: "es-AR", timeFormatter: fmtTime },
       autoSize: true,
     });
     const series = chart.addSeries(CandlestickSeries, {
-      upColor: CANDLE_UP,
-      downColor: CANDLE_DOWN,
+      upColor: theme.candleUp,
+      downColor: theme.candleDown,
       borderVisible: true,
-      borderUpColor: CANDLE_UP,
-      borderDownColor: CANDLE_DOWN,
-      wickUpColor: CANDLE_UP,
-      wickDownColor: CANDLE_DOWN,
-      // Bug #4: forex a 5 decimales en el eje y en el crosshair.
+      borderUpColor: theme.candleUp,
+      borderDownColor: theme.candleDown,
+      wickVisible: true,
+      wickUpColor: theme.candleUp,
+      wickDownColor: theme.candleDown,
       priceFormat: { type: "price", precision: 5, minMove: 0.00001 },
     });
-    chart.priceScale("right").applyOptions({ scaleMargins: { top: 0.12, bottom: 0.12 } });
+    createTextWatermark(chart.panes()[0], {
+      horzAlign: "center",
+      vertAlign: "center",
+      lines: [{ text: "GioTradingBot", color: "rgba(180, 180, 180, 0.08)", fontSize: 60 }],
+    });
     chartRef.current = chart;
     seriesRef.current = series;
     markersRef.current = createSeriesMarkers(series, []); // Fix 4: marcas de trades
@@ -115,7 +160,31 @@ export function CandleChart({
       seriesRef.current = null;
       markersRef.current = null;
     };
+    // theme solo da valores iniciales; los cambios los aplica el effect de abajo.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rerenderOverlay]);
+
+  // PR #14: aplicar la paleta del usuario (fondo, grid, velas) cuando cambia.
+  useEffect(() => {
+    const chart = chartRef.current;
+    const series = seriesRef.current;
+    if (!chart || !series) return;
+    chart.applyOptions({
+      layout: { background: { type: ColorType.Solid, color: theme.background } },
+      grid: {
+        vertLines: { color: theme.grid },
+        horzLines: { color: theme.grid },
+      },
+    });
+    series.applyOptions({
+      upColor: theme.candleUp,
+      downColor: theme.candleDown,
+      borderUpColor: theme.candleUp,
+      borderDownColor: theme.candleDown,
+      wickUpColor: theme.candleUp,
+      wickDownColor: theme.candleDown,
+    });
+  }, [theme]);
 
   // Cargar velas al cambiar par/TF + polling cada 30s.
   useEffect(() => {
@@ -230,7 +299,7 @@ export function CandleChart({
   return (
     <div className="relative h-full w-full">
       <div ref={containerRef} className="h-full w-full" />
-      <KillzoneZones chart={chartRef.current} size={size} />
+      <KillzoneZones chart={chartRef.current} size={size} theme={theme} />
       <BotOverlay
         chart={chartRef.current}
         series={seriesRef.current}
@@ -364,7 +433,7 @@ function BotOverlay({
 
 // Feature 1 (6B): bandas de killzones (Londres/NY AM/NY Lunch) en el rango
 // visible, en todos los timeframes. DST-correcto vía lib/killzones.
-function KillzoneZones({ chart, size }: { chart: IChartApi | null; size: { w: number; h: number } }) {
+function KillzoneZones({ chart, size, theme }: { chart: IChartApi | null; size: { w: number; h: number }; theme: ChartTheme }) {
   if (!chart || size.w === 0) return null;
   const range = chart.timeScale().getVisibleRange();
   if (!range) return null;
@@ -374,6 +443,8 @@ function KillzoneZones({ chart, size }: { chart: IChartApi | null; size: { w: nu
   const W = size.w;
   const H = size.h;
   const xAt = (t: number) => chart.timeScale().timeToCoordinate(t as UTCTimestamp);
+  const colorFor = (id: string) =>
+    id === "LDN" ? theme.kzLondon : id === "NY_AM" ? theme.kzNyAm : theme.kzNyLunch;
 
   return (
     <svg className="absolute inset-0 pointer-events-none" width={W} height={H}>
@@ -383,11 +454,13 @@ function KillzoneZones({ chart, size }: { chart: IChartApi | null; size: { w: nu
         const left = Math.max(0, Math.min(x1 ?? 0, x2 ?? W));
         const right = Math.min(W, Math.max(x1 ?? 0, x2 ?? W));
         if (right <= left) return null;
+        const c = colorFor(b.id);
         return (
           <g key={`kz-${i}`}>
-            <rect x={left} y={0} width={right - left} height={H} fill={b.color.fill} stroke={b.color.stroke} strokeDasharray="3 3" />
-            {right - left > 42 && (
-              <text x={left + 5} y={13} fill={b.color.stroke} fontSize={9} style={{ letterSpacing: "0.04em" }}>
+            <rect x={left} y={0} width={right - left} height={H} fill={hexToRgba(c, 0.08)} stroke={hexToRgba(c, 0.4)} strokeWidth={0} />
+            <line x1={left} y1={0} x2={right} y2={0} stroke={hexToRgba(c, 0.4)} strokeWidth={1.5} />
+            {right - left > 46 && (
+              <text x={left + 6} y={14} fill={hexToRgba(c, 0.6)} fontSize={10} style={{ letterSpacing: "0.03em" }}>
                 {b.label}
               </text>
             )}

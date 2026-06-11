@@ -10,6 +10,7 @@ import type { BotStateRow } from "@/lib/bot-state";
 import type { BotElement } from "@/lib/ict-modals";
 import type { Drawing } from "@/lib/drawings";
 import { buildAnalysisMarkdown, buildAnalysisTitle } from "@/lib/analysis-snapshot";
+import { type ChartTheme, DEFAULT_CHART_THEME } from "@/lib/chart-theme";
 
 const SYMBOLS = [
   { pair: "EURUSD" as const, label: "EUR/USD" },
@@ -22,6 +23,15 @@ export default function ChartPage() {
   const [timeframe, setTimeframe] = useState("M5");
   const [states, setStates] = useState<BotStateRow[]>([]);
   const [modalEl, setModalEl] = useState<BotElement | null>(null);
+  const [theme, setTheme] = useState<ChartTheme>(DEFAULT_CHART_THEME);
+
+  // PR #14: cargar la paleta del usuario.
+  useEffect(() => {
+    fetch("/api/account/chart-theme", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d?.theme && setTheme(d.theme))
+      .catch(() => {});
+  }, []);
 
   // Polling del estado del bot (compartido por chart + panel).
   useEffect(() => {
@@ -146,7 +156,7 @@ export default function ChartPage() {
       {/* Chart + panel */}
       <div className="flex-1 min-h-0 flex flex-col lg:flex-row">
         <div className="flex-1 min-h-[55vh] lg:min-h-0">
-          <CandleChart pair={pair} timeframe={timeframe} botState={current} onElementClick={setModalEl} />
+          <CandleChart pair={pair} timeframe={timeframe} botState={current} onElementClick={setModalEl} theme={theme} />
         </div>
         <div className="flex-1 lg:flex-none lg:w-[372px] min-h-0 border-t lg:border-t-0 lg:border-l border-graphite">
           <BotLivePanel symbol={pair} state={current} onElementClick={setModalEl} />
