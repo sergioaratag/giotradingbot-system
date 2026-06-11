@@ -6,6 +6,7 @@ export type DrawingType =
   | "TRENDLINE"
   | "RECTANGLE"
   | "TEXT"
+  | "FREEHAND"
   | "LONG_POSITION"
   | "SHORT_POSITION";
 
@@ -27,18 +28,24 @@ export type Drawing = {
   label: string | null;
 };
 
-export type Tool = "cursor" | "hline" | "vline" | "trend" | "rect" | "long" | "short";
+export type Tool = "cursor" | "hline" | "vline" | "trend" | "rect" | "freehand" | "long" | "short";
 
-// Cuántos clicks necesita cada herramienta para completarse.
+// Cuántos clicks necesita cada herramienta para completarse (modo click).
 export const TOOL_CLICKS: Record<Tool, number> = {
   cursor: 0,
   hline: 1,
   vline: 1,
   trend: 2,
   rect: 2,
+  freehand: 0,
   long: 3,
   short: 3,
 };
+
+// Herramientas de click-drag (mousedown → mover → mouseup). hline es 1 click.
+export function isDragTool(t: Tool): boolean {
+  return t === "trend" || t === "rect" || t === "freehand";
+}
 
 // EUR/USD y GBP/USD: 1 pip = 0.0001; valor del pip por lote estándar = $10.
 const PIP = 0.0001;
