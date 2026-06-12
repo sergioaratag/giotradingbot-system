@@ -13,9 +13,13 @@ import type {
 } from "lightweight-charts";
 import type { CanvasRenderingTarget2D } from "fancy-canvas";
 import type { Drawing, Pt, Tool } from "@/lib/drawings";
+import { drawingHandleSpecs, handlePixel } from "@/lib/drawings";
 import { hexToRgba } from "@/lib/chart-theme";
 
 const PREVIEW_COLOR = "#e0b341";
+const HANDLE_STROKE = "#2962ff"; // azul TradingView
+const HANDLE_FILL = "#ffffff";
+const HANDLE_SIZE = 8; // lado del cuadrito (px)
 
 type Attached = {
   chart: IChartApi;
@@ -36,6 +40,7 @@ export class DrawingsPrimitive implements ISeriesPrimitive<Time> {
   private _att: Attached | null = null;
   private _drawings: Drawing[] = [];
   private _preview: { tool: Tool; points: Pt[] } | null = null;
+  private _selectedId: string | null = null;
   private readonly _view: IPrimitivePaneView;
 
   constructor() {
@@ -72,6 +77,10 @@ export class DrawingsPrimitive implements ISeriesPrimitive<Time> {
     this._preview = p;
     this._att?.requestUpdate();
   }
+  setSelectedId(id: string | null): void {
+    this._selectedId = id;
+    this._att?.requestUpdate();
+  }
 
   private xOf(time: number): number | null {
     return this._att ? this._att.chart.timeScale().timeToCoordinate(time as UTCTimestamp) : null;
@@ -83,6 +92,11 @@ export class DrawingsPrimitive implements ISeriesPrimitive<Time> {
   render(c: CanvasRenderingContext2D, W: number, H: number): void {
     for (const d of this._drawings) {
       this.drawShape(c, W, H, d.type, d.geometry, d.color || PREVIEW_COLOR, false);
+    }
+    // Handles del dibujo seleccionado (modo edición).
+    if (this._selectedId) {
+      const sel = this._drawings.find((d) => d.id === this._selectedId);
+      if (sel) this.drawHandles(c, W, sel);
     }
     const pv = this._preview;
     if (pv && pv.points.length) {
@@ -115,6 +129,25 @@ export class DrawingsPrimitive implements ISeriesPrimitive<Time> {
         }
       }
     }
+  }
+
+  private drawHandles(c: CanvasRenderingContext2D, W: number, d: Drawing): void {
+    const toX = (t: number) => this.xOf(t);
+    const toY = (p: number) => this.yOf(p);
+    c.save();
+    c.lineWidth = 1.5;
+    c.strokeStyle = HANDLE_STROKE;
+    c.fillStyle = HANDLE_FILL;
+    const half = HANDLE_SIZE / 2;
+    for (const h of drawingHandleSpecs(d)) {
+      const pos = handlePixel(h, toX, toY, W);
+      if (!pos) continue;
+      c.beginPath();
+      c.rect(pos.x - half, pos.y - half, HANDLE_SIZE, HANDLE_SIZE);
+      c.fill();
+      c.stroke();
+    }
+    c.restore();
   }
 
   private drawShape(
