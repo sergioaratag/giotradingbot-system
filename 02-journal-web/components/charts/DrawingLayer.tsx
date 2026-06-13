@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { IChartApi, ISeriesApi, MouseEventParams, UTCTimestamp } from "lightweight-charts";
 import { DrawingToolbar } from "./DrawingToolbar";
 import { DrawingFloatToolbar } from "./DrawingFloatToolbar";
+import { DrawingSettingsModal } from "./DrawingSettingsModal";
 import { DrawingsPrimitive } from "./drawings-primitive";
 import {
   type Drawing,
@@ -16,6 +17,7 @@ import {
   applyMove,
   applyResize,
   drawingBBox,
+  isVisibleInTF,
 } from "@/lib/drawings";
 
 const GOLD = "#C9A96E";
@@ -49,16 +51,24 @@ export function DrawingLayer({
   // Mirror de la selección en state (para montar/renderizar el toolbar flotante).
   // La fuente de verdad durante el drag sigue siendo selectedIdRef (sin re-render).
   const [selId, setSelId] = useState<string | null>(null);
-  const selDrawing = selId ? drawings.find((d) => d.id === selId) ?? null : null;
+  // El toolbar flotante solo aparece si el seleccionado es visible en el TF actual.
+  const selDrawing = selId ? drawings.find((d) => d.id === selId && isVisibleInTF(d, timeframe)) ?? null : null;
   // Draft de texto: posición en px del input HTML mientras se escribe (PR #20).
   const [textDraft, setTextDraft] = useState<{ x: number; y: number } | null>(null);
   const textDraftRef = useRef(false); // guard para no confirmar/cancelar dos veces
   const textPtRef = useRef<Pt | null>(null); // ancla (tiempo/precio) del texto
+  // Modal de settings (PR #21): dibujo cuyos ajustes se editan (doble-click).
+  const [modalId, setModalId] = useState<string | null>(null);
+  const modalDrawing = modalId ? drawings.find((d) => d.id === modalId) ?? null : null;
 
   const toolRef = useRef(tool);
   toolRef.current = tool;
   const drawingsRef = useRef(drawings);
   drawingsRef.current = drawings;
+  // Solo los dibujos visibles en el TF actual (filtro PR #21).
+  const visibleDrawings = drawings.filter((d) => isVisibleInTF(d, timeframe));
+  const visibleRef = useRef(visibleDrawings);
+  visibleRef.current = visibleDrawings;
   const toolbarWrapRef = useRef<HTMLDivElement | null>(null);
 
   // Primitive singleton (no se recrea por render).
@@ -165,7 +175,7 @@ export function DrawingLayer({
     if (!series) return;
     const prim = primitiveRef.current!;
     series.attachPrimitive(prim);
-    prim.setDrawings(drawingsRef.current);
+    prim.setDrawings(visibleRef.current);
     return () => series.detachPrimitive(prim);
   }, [series]);
 
@@ -187,10 +197,11 @@ export function DrawingLayer({
     };
   }, [pair, timeframe]);
 
-  // Empujar dibujos al primitive cuando cambian (no en cada render).
+  // Empujar al primitive solo los dibujos visibles en el TF actual.
   useEffect(() => {
-    primitiveRef.current?.setDrawings(drawings);
-  }, [drawings]);
+    primitiveRef.current?.setDrawings(visibleDrawings);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drawings, timeframe]);
 
   // Reposicionar el toolbar flotante cuando cambia la selección o la geometría.
   useEffect(() => {
@@ -225,12 +236,33 @@ export function DrawingLayer({
   }
   async function createDrawing(body: Record<string, unknown>) {
     primitiveRef.current?.setPreview(null);
+    // Default de visibilidad: solo el TF donde se creó.
+    const geometry = { ...((body.geometry as Record<string, unknown>) ?? {}), visibleTimeframes: [timeframe] };
     await fetch("/api/drawings", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pair, timeframe, color: GOLD, ...body }),
+      body: JSON.stringify({ pair, timeframe, color: GOLD, ...body, geometry }),
     });
     await refetch();
+  }
+
+  // Aplica + persiste los ajustes del modal (PR #21).
+  function applyDrawingSettings(patch: {
+    color: string;
+    width: number;
+    lineStyle: LineStyle;
+    label: string | null;
+    geometry: Drawing["geometry"];
+  }) {
+    const id = modalId;
+    if (!id) return;
+    setDrawings((prev) => prev.map((d) => (d.id === id ? { ...d, ...patch } : d)));
+    void fetch(`/api/drawings/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+    setModalId(null);
   }
   async function clearAll() {
     select(null);
@@ -299,7 +331,7 @@ export function DrawingLayer({
           geom = applyResize(edit.orig, edit.ix, pt);
         }
         edit.geom = geom;
-        const edited = drawingsRef.current.map((d) => (d.id === edit.id ? { ...d, geometry: geom } : d));
+        const edited = visibleRef.current.map((d) => (d.id === edit.id ? { ...d, geometry: geom } : d));
         primitiveRef.current?.setDrawings(edited);
         repositionToolbar(geom); // la barra sigue al dibujo mientras se edita
         return;
@@ -328,7 +360,7 @@ export function DrawingLayer({
           const sel = selId ? drawingsRef.current.find((d) => d.id === selId) : null;
           if (sel && hitHandle(sel, param.point.x, param.point.y, fns.toX, fns.toY, fns.W) != null) {
             cur = "pointer";
-          } else if (drawingsRef.current.some((d) => hitBody(d, param.point!.x, param.point!.y, fns.toX, fns.toY, fns.W))) {
+          } else if (visibleRef.current.some((d) => hitBody(d, param.point!.x, param.point!.y, fns.toX, fns.toY, fns.W))) {
             cur = "move";
           }
           el.style.cursor = cur;
@@ -366,8 +398,8 @@ export function DrawingLayer({
           }
         }
         // b) Cuerpo de algún dibujo (de arriba hacia abajo) → seleccionar + mover.
-        for (let i = drawingsRef.current.length - 1; i >= 0; i--) {
-          const d = drawingsRef.current[i];
+        for (let i = visibleRef.current.length - 1; i >= 0; i--) {
+          const d = visibleRef.current[i];
           if (hitBody(d, px.x, px.y, fns.toX, fns.toY, fns.W)) {
             select(d.id);
             startEdit(d, "move", -1);
@@ -411,7 +443,7 @@ export function DrawingLayer({
           void persistGeometry(edit.id, edit.geom);
         } else {
           // Click sin arrastrar → restaurar geometría del servidor.
-          primitiveRef.current?.setDrawings(drawingsRef.current);
+          primitiveRef.current?.setDrawings(visibleRef.current);
         }
         return;
       }
@@ -435,10 +467,30 @@ export function DrawingLayer({
       reset();
     };
 
+    // Doble-click sobre un dibujo → abrir el modal de settings.
+    const onDbl = () => {
+      const px = lastPxRef.current;
+      const fns = coordFns();
+      if (!px || !fns) return;
+      for (let i = visibleRef.current.length - 1; i >= 0; i--) {
+        const d = visibleRef.current[i];
+        const hit =
+          hitHandle(d, px.x, px.y, fns.toX, fns.toY, fns.W) != null ||
+          hitBody(d, px.x, px.y, fns.toX, fns.toY, fns.W);
+        if (hit) {
+          select(d.id);
+          setModalId(d.id);
+          return;
+        }
+      }
+    };
+
     el.addEventListener("mousedown", onDown);
+    el.addEventListener("dblclick", onDbl);
     window.addEventListener("mouseup", onUp);
     return () => {
       el.removeEventListener("mousedown", onDown);
+      el.removeEventListener("dblclick", onDbl);
       window.removeEventListener("mouseup", onUp);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -452,7 +504,7 @@ export function DrawingLayer({
         if (editRef.current) {
           editRef.current = null;
           chart?.applyOptions({ handleScroll: true, handleScale: true });
-          primitiveRef.current?.setDrawings(drawingsRef.current);
+          primitiveRef.current?.setDrawings(visibleRef.current);
         }
         reset();
         select(null);
@@ -529,6 +581,9 @@ export function DrawingLayer({
             font: "600 14px ui-sans-serif, system-ui, sans-serif",
           }}
         />
+      )}
+      {modalDrawing && (
+        <DrawingSettingsModal drawing={modalDrawing} onApply={applyDrawingSettings} onClose={() => setModalId(null)} />
       )}
     </>
   );

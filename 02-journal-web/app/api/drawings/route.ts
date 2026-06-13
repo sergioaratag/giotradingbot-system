@@ -25,16 +25,12 @@ export async function GET(req: Request) {
 
   const { searchParams } = new URL(req.url);
   const pair = String(searchParams.get("pair") ?? "").toUpperCase();
-  const timeframe = searchParams.get("timeframe");
   if (!PAIRS.includes(pair)) return NextResponse.json({ error: "pair inválido" }, { status: 400 });
 
+  // PR #21: se devuelven TODOS los dibujos del par; la visibilidad por timeframe
+  // (geometry.visibleTimeframes) se resuelve en el cliente (isVisibleInTF).
   const drawings = await prisma.drawing.findMany({
-    where: {
-      userId: session.user.id,
-      pair,
-      // timeframe null = visible en todos los TFs; específico = solo ese TF.
-      ...(timeframe ? { OR: [{ timeframe: null }, { timeframe }] } : {}),
-    },
+    where: { userId: session.user.id, pair },
     orderBy: { createdAt: "asc" },
   });
   return NextResponse.json({ drawings });

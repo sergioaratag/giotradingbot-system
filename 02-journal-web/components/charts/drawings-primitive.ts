@@ -13,7 +13,7 @@ import type {
 } from "lightweight-charts";
 import type { CanvasRenderingTarget2D } from "fancy-canvas";
 import type { Drawing, Pt, Tool } from "@/lib/drawings";
-import { drawingHandleSpecs, handlePixel, TEXT_FONT_PX } from "@/lib/drawings";
+import { drawingHandleSpecs, handlePixel, resolveFont } from "@/lib/drawings";
 import { hexToRgba } from "@/lib/chart-theme";
 
 const PREVIEW_COLOR = "#e0b341";
@@ -92,6 +92,7 @@ export class DrawingsPrimitive implements ISeriesPrimitive<Time> {
   render(c: CanvasRenderingContext2D, W: number, H: number): void {
     for (const d of this._drawings) {
       this.drawShape(c, W, H, d.type, d.geometry, d.color || PREVIEW_COLOR, false, d.width ?? 2, d.lineStyle ?? "SOLID");
+      if (d.label && d.type !== "TEXT") this.drawLabel(c, d.label, d.color || PREVIEW_COLOR, d.geometry, d.type);
     }
     // Handles del dibujo seleccionado (modo edición).
     if (this._selectedId) {
@@ -152,6 +153,50 @@ export class DrawingsPrimitive implements ISeriesPrimitive<Time> {
     c.restore();
   }
 
+  private fillOf(geom: Drawing["geometry"], borderColor: string) {
+    const f = geom.fill;
+    return {
+      enabled: f?.enabled ?? true,
+      color: f?.color ?? (borderColor.startsWith("#") ? borderColor : "#e0b341"),
+      opacity: f?.opacity ?? 0.12,
+    };
+  }
+
+  // Etiqueta opcional (columna label) sobre dibujos no-texto.
+  private drawLabel(c: CanvasRenderingContext2D, label: string, color: string, geom: Drawing["geometry"], type: string): void {
+    const a = this.labelAnchor(geom, type);
+    if (!a) return;
+    c.save();
+    c.setLineDash([]);
+    c.font = "600 12px ui-sans-serif, system-ui, -apple-system, sans-serif";
+    c.textBaseline = "bottom";
+    c.textAlign = "left";
+    c.fillStyle = color;
+    c.fillText(label, a.x, a.y);
+    c.restore();
+  }
+
+  private labelAnchor(geom: Drawing["geometry"], type: string): { x: number; y: number } | null {
+    if (type === "HORIZONTAL_LINE" && geom.price != null) {
+      const y = this.yOf(geom.price);
+      return y != null ? { x: 8, y: y - 4 } : null;
+    }
+    if (geom.points?.length) {
+      let best: { x: number; y: number } | null = null;
+      for (const p of geom.points) {
+        const x = this.xOf(p.time), y = this.yOf(p.price);
+        if (x == null || y == null) continue;
+        if (!best || y < best.y) best = { x, y };
+      }
+      return best ? { x: best.x, y: best.y - 4 } : null;
+    }
+    if (geom.time != null && geom.price != null) {
+      const x = this.xOf(geom.time), y = this.yOf(geom.price);
+      return x != null && y != null ? { x, y: y - 4 } : null;
+    }
+    return null;
+  }
+
   private drawShape(
     c: CanvasRenderingContext2D,
     W: number,
@@ -191,8 +236,11 @@ export class DrawingsPrimitive implements ISeriesPrimitive<Time> {
       const ax = this.xOf(a.time), ay = this.yOf(a.price), bx = this.xOf(b.time), by = this.yOf(b.price);
       if (ax != null && ay != null && bx != null && by != null) {
         const x = Math.min(ax, bx), y = Math.min(ay, by), w = Math.abs(bx - ax), h = Math.abs(by - ay);
-        c.fillStyle = hexToRgba(color.startsWith("#") ? color : "#e0b341", 0.12);
-        c.fillRect(x, y, w, h);
+        const fl = this.fillOf(geom, color);
+        if (fl.enabled) {
+          c.fillStyle = hexToRgba(fl.color, fl.opacity);
+          c.fillRect(x, y, w, h);
+        }
         c.strokeRect(x, y, w, h);
       }
     } else if (type === "OVAL" && geom.points?.length === 2) {
@@ -203,17 +251,21 @@ export class DrawingsPrimitive implements ISeriesPrimitive<Time> {
         const rx = Math.abs(bx - ax) / 2, ry = Math.abs(by - ay) / 2;
         c.beginPath();
         c.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
-        c.fillStyle = hexToRgba(color.startsWith("#") ? color : "#e0b341", 0.12);
-        c.fill();
+        const fl = this.fillOf(geom, color);
+        if (fl.enabled) {
+          c.fillStyle = hexToRgba(fl.color, fl.opacity);
+          c.fill();
+        }
         c.stroke();
       }
     } else if (type === "TEXT" && geom.time != null && geom.price != null && geom.text) {
       const x = this.xOf(geom.time), y = this.yOf(geom.price);
       if (x != null && y != null) {
+        const f = resolveFont(geom.font);
         c.setLineDash([]);
-        c.font = `600 ${TEXT_FONT_PX}px ui-sans-serif, system-ui, -apple-system, sans-serif`;
+        c.font = `${f.italic ? "italic " : ""}${f.bold ? 700 : 400} ${f.size}px ui-sans-serif, system-ui, -apple-system, sans-serif`;
         c.textBaseline = "middle";
-        c.textAlign = "left";
+        c.textAlign = f.align;
         c.fillStyle = color;
         c.fillText(geom.text, x, y);
       }
