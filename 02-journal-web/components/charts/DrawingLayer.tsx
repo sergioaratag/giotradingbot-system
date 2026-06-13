@@ -3,16 +3,19 @@
 import { useEffect, useRef, useState } from "react";
 import type { IChartApi, ISeriesApi, MouseEventParams, UTCTimestamp } from "lightweight-charts";
 import { DrawingToolbar } from "./DrawingToolbar";
+import { DrawingFloatToolbar } from "./DrawingFloatToolbar";
 import { DrawingsPrimitive } from "./drawings-primitive";
 import {
   type Drawing,
   type Pt,
   type Tool,
+  type LineStyle,
   isDragTool,
   hitHandle,
   hitBody,
   applyMove,
   applyResize,
+  drawingBBox,
 } from "@/lib/drawings";
 
 const GOLD = "#C9A96E";
@@ -43,11 +46,16 @@ export function DrawingLayer({
 }) {
   const [tool, setTool] = useState<Tool>("cursor");
   const [drawings, setDrawings] = useState<Drawing[]>([]);
+  // Mirror de la selección en state (para montar/renderizar el toolbar flotante).
+  // La fuente de verdad durante el drag sigue siendo selectedIdRef (sin re-render).
+  const [selId, setSelId] = useState<string | null>(null);
+  const selDrawing = selId ? drawings.find((d) => d.id === selId) ?? null : null;
 
   const toolRef = useRef(tool);
   toolRef.current = tool;
   const drawingsRef = useRef(drawings);
   drawingsRef.current = drawings;
+  const toolbarWrapRef = useRef<HTMLDivElement | null>(null);
 
   // Primitive singleton (no se recrea por render).
   const primitiveRef = useRef<DrawingsPrimitive | null>(null);
@@ -76,6 +84,60 @@ export function DrawingLayer({
   function select(id: string | null) {
     selectedIdRef.current = id;
     primitiveRef.current?.setSelectedId(id);
+    setSelId(id);
+  }
+
+  // Reposiciona el toolbar flotante sobre el bounding box del seleccionado.
+  // geomOverride: durante una edición en vivo, usar la geometría previsualizada.
+  function repositionToolbar(geomOverride?: Drawing["geometry"]) {
+    const wrap = toolbarWrapRef.current;
+    if (!wrap) return;
+    const id = selectedIdRef.current;
+    const base = id ? drawingsRef.current.find((d) => d.id === id) : null;
+    const fns = coordFns();
+    if (!id || !base || !fns) {
+      wrap.style.visibility = "hidden";
+      return;
+    }
+    const d = geomOverride ? { ...base, geometry: geomOverride } : base;
+    const bb = drawingBBox(d, fns.toX, fns.toY, fns.W);
+    const H = chart?.chartElement?.()?.clientHeight ?? 0;
+    if (!bb || bb.maxY < 0 || bb.minY > H || bb.maxX < 0 || bb.minX > fns.W) {
+      wrap.style.visibility = "hidden"; // fuera de vista
+      return;
+    }
+    const cx = Math.min(Math.max((bb.minX + bb.maxX) / 2, 70), fns.W - 70);
+    const GAP = 10;
+    let top = bb.minY - GAP;
+    let translateY = "-100%";
+    if (top < 44) {
+      top = bb.maxY + GAP; // no cabe arriba → debajo del dibujo
+      translateY = "0";
+    }
+    wrap.style.left = `${cx}px`;
+    wrap.style.top = `${top}px`;
+    wrap.style.transform = `translate(-50%, ${translateY})`;
+    wrap.style.visibility = "visible";
+  }
+
+  // Cambia estilo (color/grosor/lineStyle) en vivo + persiste (PATCH).
+  function applyStyle(patch: Partial<Pick<Drawing, "color" | "width" | "lineStyle">>) {
+    const id = selectedIdRef.current;
+    if (!id) return;
+    setDrawings((prev) => prev.map((d) => (d.id === id ? { ...d, ...patch } : d)));
+    void fetch(`/api/drawings/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+  }
+
+  function deleteSelected() {
+    const id = selectedIdRef.current;
+    if (!id) return;
+    select(null);
+    setDrawings((prev) => prev.filter((d) => d.id !== id)); // optimista
+    void fetch(`/api/drawings/${id}`, { method: "DELETE" });
   }
 
   // Attach del primitive a la serie.
@@ -109,6 +171,22 @@ export function DrawingLayer({
   useEffect(() => {
     primitiveRef.current?.setDrawings(drawings);
   }, [drawings]);
+
+  // Reposicionar el toolbar flotante cuando cambia la selección o la geometría.
+  useEffect(() => {
+    repositionToolbar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selId, drawings]);
+
+  // Seguir al dibujo en pan/zoom (cambia el rango visible).
+  useEffect(() => {
+    if (!chart) return;
+    const ts = chart.timeScale();
+    const onRange = () => repositionToolbar(editRef.current?.geom ?? undefined);
+    ts.subscribeVisibleLogicalRangeChange(onRange);
+    return () => ts.unsubscribeVisibleLogicalRangeChange(onRange);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chart]);
 
   // Activo: avisar + cursor + bloquear scroll/scale mientras se dibuja.
   useEffect(() => {
@@ -203,6 +281,7 @@ export function DrawingLayer({
         edit.geom = geom;
         const edited = drawingsRef.current.map((d) => (d.id === edit.id ? { ...d, geometry: geom } : d));
         primitiveRef.current?.setDrawings(edited);
+        repositionToolbar(geom); // la barra sigue al dibujo mientras se edita
         return;
       }
 
@@ -234,6 +313,8 @@ export function DrawingLayer({
           }
           el.style.cursor = cur;
         }
+        // Seguir al dibujo si se paneó el chart con el cursor.
+        if (selectedIdRef.current) repositionToolbar();
       }
     };
     chart.subscribeCrosshairMove(onMove);
@@ -347,16 +428,14 @@ export function DrawingLayer({
       if (e.key === "Delete" || e.key === "Backspace") {
         const ae = document.activeElement as HTMLElement | null;
         if (ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA" || ae.isContentEditable)) return;
-        const id = selectedIdRef.current;
-        if (!id || editRef.current) return;
+        if (!selectedIdRef.current || editRef.current) return;
         e.preventDefault();
-        select(null);
-        setDrawings((prev) => prev.filter((d) => d.id !== id)); // optimista
-        void fetch(`/api/drawings/${id}`, { method: "DELETE" });
+        deleteSelected();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chart]);
 
   const hint =
@@ -374,6 +453,17 @@ export function DrawingLayer({
           <span className="text-[11px] px-2.5 py-1 rounded-md" style={{ background: "rgba(11,11,12,0.9)", color: GOLD }}>
             {hint}
           </span>
+        </div>
+      )}
+      {selDrawing && (
+        <div ref={toolbarWrapRef} className="absolute z-30" style={{ left: 0, top: 0, visibility: "hidden" }}>
+          <DrawingFloatToolbar
+            drawing={selDrawing}
+            onColor={(c) => applyStyle({ color: c })}
+            onWidth={(w) => applyStyle({ width: w })}
+            onStyle={(s: LineStyle) => applyStyle({ lineStyle: s })}
+            onDelete={deleteSelected}
+          />
         </div>
       )}
     </>

@@ -30,6 +30,9 @@ export async function PATCH(req: Request, { params }: Ctx) {
       riskUsd: num(body.riskUsd),
       rRatio: num(body.rRatio),
       color: body.color !== undefined ? String(body.color) : undefined,
+      width:
+        body.width !== undefined && Number.isFinite(Number(body.width)) ? Math.round(Number(body.width)) : undefined,
+      lineStyle: body.lineStyle === "DASHED" ? "DASHED" : body.lineStyle === "SOLID" ? "SOLID" : undefined,
       label: body.label !== undefined ? (body.label ? String(body.label) : null) : undefined,
     },
   });

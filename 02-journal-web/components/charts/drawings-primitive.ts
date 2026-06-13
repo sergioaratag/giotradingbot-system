@@ -91,7 +91,7 @@ export class DrawingsPrimitive implements ISeriesPrimitive<Time> {
 
   render(c: CanvasRenderingContext2D, W: number, H: number): void {
     for (const d of this._drawings) {
-      this.drawShape(c, W, H, d.type, d.geometry, d.color || PREVIEW_COLOR, false);
+      this.drawShape(c, W, H, d.type, d.geometry, d.color || PREVIEW_COLOR, false, d.width ?? 2, d.lineStyle ?? "SOLID");
     }
     // Handles del dibujo seleccionado (modo edición).
     if (this._selectedId) {
@@ -113,7 +113,7 @@ export class DrawingsPrimitive implements ISeriesPrimitive<Time> {
       const minPts = type === "HORIZONTAL_LINE" ? 1 : 2;
       if (type && pv.points.length >= minPts) {
         const geom = type === "HORIZONTAL_LINE" ? { price: pv.points[0].price } : { points: pv.points };
-        this.drawShape(c, W, H, type, geom, PREVIEW_COLOR, true);
+        this.drawShape(c, W, H, type, geom, PREVIEW_COLOR, true, 2, "SOLID");
       }
       // puntos colocados (no para freehand, que son muchos).
       if (pv.tool !== "freehand") {
@@ -158,11 +158,14 @@ export class DrawingsPrimitive implements ISeriesPrimitive<Time> {
     geom: Drawing["geometry"],
     color: string,
     preview: boolean,
+    width: number,
+    lineStyle: "SOLID" | "DASHED",
   ): void {
     c.save();
     c.strokeStyle = color;
-    c.lineWidth = 1.5;
-    c.setLineDash(preview ? [5, 4] : []);
+    c.lineWidth = width;
+    // Dash: preview siempre punteado; si no, según el estilo del dibujo.
+    c.setLineDash(preview ? [5, 4] : lineStyle === "DASHED" ? [Math.max(5, width * 2.5), Math.max(4, width * 2)] : []);
 
     if (type === "HORIZONTAL_LINE" && geom.price != null) {
       const y = this.yOf(geom.price);

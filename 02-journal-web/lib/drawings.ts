@@ -12,6 +12,8 @@ export type DrawingType =
 
 export type Pt = { time: number; price: number };
 
+export type LineStyle = "SOLID" | "DASHED";
+
 export type Drawing = {
   id: string;
   pair: string;
@@ -25,8 +27,24 @@ export type Drawing = {
   riskUsd: number | null;
   rRatio: number | null;
   color: string;
+  width: number;
+  lineStyle: LineStyle;
   label: string | null;
 };
+
+// Opciones de estilo para el toolbar flotante (PR #19).
+export const COLOR_PRESETS = [
+  "#C9A96E", // dorado (default)
+  "#E8E8E8", // blanco hueso
+  "#2962FF", // azul
+  "#26A69A", // verde azulado
+  "#EF5350", // rojo
+  "#FF9800", // naranja
+  "#AB47BC", // púrpura
+  "#00BCD4", // cian
+] as const;
+
+export const WIDTH_OPTIONS = [1, 2, 3, 4] as const;
 
 export type Tool = "cursor" | "hline" | "vline" | "trend" | "rect" | "freehand" | "long" | "short";
 
@@ -226,4 +244,33 @@ export function applyResize(d: Drawing, ix: number, pt: Pt): Drawing["geometry"]
     return { ...g, points: [a, b] };
   }
   return g; // FREEHAND: sin resize por vértice en este PR
+}
+
+// Bounding box en píxeles del dibujo (para posicionar el toolbar flotante).
+// hline ocupa todo el ancho a su precio. Devuelve null si no es proyectable.
+export function drawingBBox(
+  d: Drawing,
+  toX: ToCoord,
+  toY: ToCoord,
+  W: number,
+): { minX: number; minY: number; maxX: number; maxY: number } | null {
+  const g = d.geometry;
+  if (d.type === "HORIZONTAL_LINE" && g.price != null) {
+    const y = toY(g.price);
+    if (y == null) return null;
+    return { minX: 0, minY: y, maxX: W, maxY: y };
+  }
+  if (g.points && g.points.length) {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity, any = false;
+    for (const p of g.points) {
+      const x = toX(p.time), y = toY(p.price);
+      if (x == null || y == null) continue;
+      any = true;
+      minX = Math.min(minX, x); maxX = Math.max(maxX, x);
+      minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+    }
+    if (!any) return null;
+    return { minX, minY, maxX, maxY };
+  }
+  return null;
 }
