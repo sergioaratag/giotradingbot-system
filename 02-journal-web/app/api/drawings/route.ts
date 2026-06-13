@@ -11,6 +11,7 @@ const TYPES: DrawingType[] = [
   "VERTICAL_LINE",
   "TRENDLINE",
   "RECTANGLE",
+  "OVAL",
   "TEXT",
   "FREEHAND",
   "LONG_POSITION",

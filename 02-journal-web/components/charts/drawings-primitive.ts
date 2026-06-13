@@ -13,7 +13,7 @@ import type {
 } from "lightweight-charts";
 import type { CanvasRenderingTarget2D } from "fancy-canvas";
 import type { Drawing, Pt, Tool } from "@/lib/drawings";
-import { drawingHandleSpecs, handlePixel } from "@/lib/drawings";
+import { drawingHandleSpecs, handlePixel, TEXT_FONT_PX } from "@/lib/drawings";
 import { hexToRgba } from "@/lib/chart-theme";
 
 const PREVIEW_COLOR = "#e0b341";
@@ -107,9 +107,11 @@ export class DrawingsPrimitive implements ISeriesPrimitive<Time> {
             ? "TRENDLINE"
             : pv.tool === "rect"
               ? "RECTANGLE"
-              : pv.tool === "freehand"
-                ? "FREEHAND"
-                : null;
+              : pv.tool === "oval"
+                ? "OVAL"
+                : pv.tool === "freehand"
+                  ? "FREEHAND"
+                  : null;
       const minPts = type === "HORIZONTAL_LINE" ? 1 : 2;
       if (type && pv.points.length >= minPts) {
         const geom = type === "HORIZONTAL_LINE" ? { price: pv.points[0].price } : { points: pv.points };
@@ -192,6 +194,28 @@ export class DrawingsPrimitive implements ISeriesPrimitive<Time> {
         c.fillStyle = hexToRgba(color.startsWith("#") ? color : "#e0b341", 0.12);
         c.fillRect(x, y, w, h);
         c.strokeRect(x, y, w, h);
+      }
+    } else if (type === "OVAL" && geom.points?.length === 2) {
+      const [a, b] = geom.points;
+      const ax = this.xOf(a.time), ay = this.yOf(a.price), bx = this.xOf(b.time), by = this.yOf(b.price);
+      if (ax != null && ay != null && bx != null && by != null) {
+        const cx = (ax + bx) / 2, cy = (ay + by) / 2;
+        const rx = Math.abs(bx - ax) / 2, ry = Math.abs(by - ay) / 2;
+        c.beginPath();
+        c.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+        c.fillStyle = hexToRgba(color.startsWith("#") ? color : "#e0b341", 0.12);
+        c.fill();
+        c.stroke();
+      }
+    } else if (type === "TEXT" && geom.time != null && geom.price != null && geom.text) {
+      const x = this.xOf(geom.time), y = this.yOf(geom.price);
+      if (x != null && y != null) {
+        c.setLineDash([]);
+        c.font = `600 ${TEXT_FONT_PX}px ui-sans-serif, system-ui, -apple-system, sans-serif`;
+        c.textBaseline = "middle";
+        c.textAlign = "left";
+        c.fillStyle = color;
+        c.fillText(geom.text, x, y);
       }
     } else if (type === "FREEHAND" && geom.points && geom.points.length >= 2) {
       c.lineJoin = "round";

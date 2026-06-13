@@ -50,6 +50,10 @@ export function DrawingLayer({
   // La fuente de verdad durante el drag sigue siendo selectedIdRef (sin re-render).
   const [selId, setSelId] = useState<string | null>(null);
   const selDrawing = selId ? drawings.find((d) => d.id === selId) ?? null : null;
+  // Draft de texto: posición en px del input HTML mientras se escribe (PR #20).
+  const [textDraft, setTextDraft] = useState<{ x: number; y: number } | null>(null);
+  const textDraftRef = useRef(false); // guard para no confirmar/cancelar dos veces
+  const textPtRef = useRef<Pt | null>(null); // ancla (tiempo/precio) del texto
 
   const toolRef = useRef(tool);
   toolRef.current = tool;
@@ -138,6 +142,22 @@ export function DrawingLayer({
     select(null);
     setDrawings((prev) => prev.filter((d) => d.id !== id)); // optimista
     void fetch(`/api/drawings/${id}`, { method: "DELETE" });
+  }
+
+  // Confirma el texto escrito → crea el dibujo TEXT (si no está vacío).
+  function confirmText(value: string) {
+    if (!textDraftRef.current) return;
+    textDraftRef.current = false;
+    const pt = textPtRef.current;
+    setTextDraft(null);
+    if (pt && value.trim()) {
+      void createDrawing({ type: "TEXT", geometry: { time: pt.time, price: pt.price, text: value.trim() } });
+    }
+  }
+  function cancelText() {
+    if (!textDraftRef.current) return;
+    textDraftRef.current = false;
+    setTextDraft(null);
   }
 
   // Attach del primitive a la serie.
@@ -359,6 +379,18 @@ export function DrawingLayer({
         return;
       }
 
+      // Herramienta texto → 1 click abre el input HTML en ese píxel.
+      if (t === "text") {
+        const pt = lastPtRef.current;
+        const px = lastPxRef.current;
+        if (pt && px && !textDraftRef.current) {
+          textDraftRef.current = true;
+          textPtRef.current = pt;
+          setTextDraft({ x: px.x, y: px.y });
+        }
+        return;
+      }
+
       // Herramienta de dibujo activa.
       const pt = lastPtRef.current;
       if (!pt) return;
@@ -396,6 +428,7 @@ export function DrawingLayer({
       if (drag && end) {
         if (t === "trend") void createDrawing({ type: "TRENDLINE", geometry: { points: [drag.start, end] } });
         else if (t === "rect") void createDrawing({ type: "RECTANGLE", geometry: { points: [drag.start, end] } });
+        else if (t === "oval") void createDrawing({ type: "OVAL", geometry: { points: [drag.start, end] } });
         else if (t === "freehand" && drag.path.length >= 2)
           void createDrawing({ type: "FREEHAND", geometry: { points: drag.path } });
       }
@@ -441,9 +474,11 @@ export function DrawingLayer({
   const hint =
     tool === "hline"
       ? "Click para fijar el precio · Esc cancela"
-      : isDragTool(tool)
-        ? "Arrastrá para dibujar · Esc cancela"
-        : "";
+      : tool === "text"
+        ? "Click donde quieras escribir · Esc cancela"
+        : isDragTool(tool)
+          ? "Arrastrá para dibujar · Esc cancela"
+          : "";
 
   return (
     <>
@@ -465,6 +500,35 @@ export function DrawingLayer({
             onDelete={deleteSelected}
           />
         </div>
+      )}
+      {textDraft && (
+        <textarea
+          autoFocus
+          rows={1}
+          placeholder="Escribí y Enter…"
+          onMouseDown={(e) => e.stopPropagation()}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              confirmText((e.target as HTMLTextAreaElement).value);
+            } else if (e.key === "Escape") {
+              e.preventDefault();
+              cancelText();
+            }
+          }}
+          onBlur={(e) => confirmText(e.target.value)}
+          className="absolute z-40 resize-none outline-none px-1.5 py-0.5 rounded"
+          style={{
+            left: textDraft.x,
+            top: textDraft.y,
+            transform: "translateY(-50%)",
+            minWidth: 120,
+            background: "rgba(11,11,12,0.95)",
+            border: "1px solid var(--color-graphite)",
+            color: GOLD,
+            font: "600 14px ui-sans-serif, system-ui, sans-serif",
+          }}
+        />
       )}
     </>
   );

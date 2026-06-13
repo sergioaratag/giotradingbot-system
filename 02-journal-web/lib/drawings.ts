@@ -5,6 +5,7 @@ export type DrawingType =
   | "VERTICAL_LINE"
   | "TRENDLINE"
   | "RECTANGLE"
+  | "OVAL"
   | "TEXT"
   | "FREEHAND"
   | "LONG_POSITION"
@@ -46,7 +47,7 @@ export const COLOR_PRESETS = [
 
 export const WIDTH_OPTIONS = [1, 2, 3, 4] as const;
 
-export type Tool = "cursor" | "hline" | "vline" | "trend" | "rect" | "freehand" | "long" | "short";
+export type Tool = "cursor" | "hline" | "vline" | "trend" | "rect" | "oval" | "text" | "freehand" | "long" | "short";
 
 // Cuántos clicks necesita cada herramienta para completarse (modo click).
 export const TOOL_CLICKS: Record<Tool, number> = {
@@ -55,14 +56,23 @@ export const TOOL_CLICKS: Record<Tool, number> = {
   vline: 1,
   trend: 2,
   rect: 2,
+  oval: 2,
+  text: 1,
   freehand: 0,
   long: 3,
   short: 3,
 };
 
-// Herramientas de click-drag (mousedown → mover → mouseup). hline es 1 click.
+// Herramientas de click-drag (mousedown → mover → mouseup). hline/text son 1 click.
 export function isDragTool(t: Tool): boolean {
-  return t === "trend" || t === "rect" || t === "freehand";
+  return t === "trend" || t === "rect" || t === "oval" || t === "freehand";
+}
+
+// ── Texto (PR #20): tamaño base y estimación de ancho para hit-test/bbox ──
+// El render exacto usa measureText; aquí estimamos para no depender del canvas.
+export const TEXT_FONT_PX = 14;
+export function textWidthEstimate(text: string): number {
+  return Math.max(12, text.length * TEXT_FONT_PX * 0.58);
 }
 
 // EUR/USD y GBP/USD: 1 pip = 0.0001; valor del pip por lote estándar = $10.
@@ -113,7 +123,8 @@ export function drawingHandleSpecs(d: Drawing): HandleSpec[] {
   if (d.type === "TRENDLINE" && g.points?.length === 2) {
     return g.points.map((p, i) => ({ ix: i, time: p.time, price: p.price }));
   }
-  if (d.type === "RECTANGLE" && g.points?.length === 2) {
+  // Rectángulo y óvalo comparten los 8 handles del bounding box.
+  if ((d.type === "RECTANGLE" || d.type === "OVAL") && g.points?.length === 2) {
     const [a, b] = g.points;
     const mt = (a.time + b.time) / 2;
     const mp = (a.price + b.price) / 2;
@@ -127,6 +138,9 @@ export function drawingHandleSpecs(d: Drawing): HandleSpec[] {
       { ix: 6, time: mt, price: b.price }, // medio borde B-price
       { ix: 7, time: a.time, price: mp }, // medio borde A-time
     ];
+  }
+  if (d.type === "TEXT" && g.time != null && g.price != null) {
+    return [{ ix: 0, time: g.time, price: g.price }]; // 1 ancla (solo move)
   }
   if (d.type === "FREEHAND" && g.points && g.points.length >= 2) {
     return g.points.map((p, i) => ({ ix: i, time: p.time, price: p.price }));
@@ -164,7 +178,7 @@ export function hitHandle(
   W: number,
   tol = HIT_TOL,
 ): number | null {
-  if (d.type === "FREEHAND") return null;
+  if (d.type === "FREEHAND" || d.type === "TEXT") return null; // sin resize por handle
   for (const h of drawingHandleSpecs(d)) {
     const pos = handlePixel(h, toX, toY, W);
     if (pos && Math.hypot(px - pos.x, py - pos.y) <= tol + 1) return h.ix;
@@ -201,6 +215,26 @@ export function hitBody(
     const minY = Math.min(ay, by), maxY = Math.max(ay, by);
     return px >= minX - tol && px <= maxX + tol && py >= minY - tol && py <= maxY + tol;
   }
+  if (d.type === "OVAL" && g.points?.length === 2) {
+    const [a, b] = g.points;
+    const ax = toX(a.time), ay = toY(a.price), bx = toX(b.time), by = toY(b.price);
+    if (ax == null || ay == null || bx == null || by == null) return false;
+    const cx = (ax + bx) / 2, cy = (ay + by) / 2;
+    const rx = Math.abs(bx - ax) / 2, ry = Math.abs(by - ay) / 2;
+    if (rx < 1 || ry < 1) return false;
+    const norm = ((px - cx) / rx) ** 2 + ((py - cy) / ry) ** 2;
+    if (norm <= 1) return true; // dentro
+    // cerca del borde: distancia aproximada en píxeles a la elipse
+    const approxDist = (Math.sqrt(norm) - 1) * Math.min(rx, ry);
+    return approxDist <= tol;
+  }
+  if (d.type === "TEXT" && g.time != null && g.price != null) {
+    const x = toX(g.time), y = toY(g.price);
+    if (x == null || y == null) return false;
+    const w = textWidthEstimate(g.text ?? "");
+    const half = TEXT_FONT_PX / 2 + 3;
+    return px >= x - tol && px <= x + w + tol && py >= y - half - tol && py <= y + half + tol;
+  }
   if (d.type === "FREEHAND" && g.points && g.points.length >= 2) {
     for (let i = 1; i < g.points.length; i++) {
       const a = g.points[i - 1], b = g.points[i];
@@ -217,6 +251,9 @@ export function hitBody(
 export function applyMove(d: Drawing, dTime: number, dPrice: number): Drawing["geometry"] {
   const g = d.geometry;
   if (d.type === "HORIZONTAL_LINE" && g.price != null) return { ...g, price: g.price + dPrice };
+  if (d.type === "TEXT" && g.time != null && g.price != null) {
+    return { ...g, time: g.time + dTime, price: g.price + dPrice };
+  }
   if (g.points) return { ...g, points: g.points.map((p) => ({ time: p.time + dTime, price: p.price + dPrice })) };
   return g;
 }
@@ -228,7 +265,7 @@ export function applyResize(d: Drawing, ix: number, pt: Pt): Drawing["geometry"]
   if (d.type === "TRENDLINE" && g.points?.length === 2) {
     return { ...g, points: g.points.map((p, i) => (i === ix ? { time: pt.time, price: pt.price } : p)) };
   }
-  if (d.type === "RECTANGLE" && g.points?.length === 2) {
+  if ((d.type === "RECTANGLE" || d.type === "OVAL") && g.points?.length === 2) {
     const a = { ...g.points[0] };
     const b = { ...g.points[1] };
     switch (ix) {
@@ -259,6 +296,13 @@ export function drawingBBox(
     const y = toY(g.price);
     if (y == null) return null;
     return { minX: 0, minY: y, maxX: W, maxY: y };
+  }
+  if (d.type === "TEXT" && g.time != null && g.price != null) {
+    const x = toX(g.time), y = toY(g.price);
+    if (x == null || y == null) return null;
+    const w = textWidthEstimate(g.text ?? "");
+    const half = TEXT_FONT_PX / 2 + 3;
+    return { minX: x, minY: y - half, maxX: x + w, maxY: y + half };
   }
   if (g.points && g.points.length) {
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity, any = false;

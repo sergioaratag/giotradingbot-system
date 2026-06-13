@@ -1,6 +1,6 @@
 "use client";
 
-import { MousePointer2, Minus, TrendingUp, Square, Spline, Trash2 } from "lucide-react";
+import { MousePointer2, Minus, TrendingUp, Square, Circle, Type, Spline, Trash2 } from "lucide-react";
 import type { Tool } from "@/lib/drawings";
 
 const TOOLS: { id: Tool; label: string; icon: React.ComponentType<{ className?: string; strokeWidth?: number }>; rotate?: boolean }[] = [
@@ -8,6 +8,8 @@ const TOOLS: { id: Tool; label: string; icon: React.ComponentType<{ className?: 
   { id: "hline", label: "Línea horizontal (click)", icon: Minus },
   { id: "trend", label: "Línea de tendencia (arrastrá)", icon: TrendingUp },
   { id: "rect", label: "Rectángulo (arrastrá)", icon: Square },
+  { id: "oval", label: "Óvalo (arrastrá)", icon: Circle },
+  { id: "text", label: "Texto (click)", icon: Type },
   { id: "freehand", label: "Ruta libre (arrastrá)", icon: Spline },
 ];
 
