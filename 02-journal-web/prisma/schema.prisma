@@ -229,12 +229,19 @@ model Drawing {
   rRatio     Float?
 
   color      String      @default("#C9A96E")
+  width      Int         @default(2)        // grosor de línea (px)
+  lineStyle  LineStyle   @default(SOLID)
   label      String?
 
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt
 
   @@index([userId, pair])
+}
+
+enum LineStyle {
+  SOLID
+  DASHED
 }
 
 model Candle {
