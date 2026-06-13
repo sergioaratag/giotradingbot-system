@@ -15,12 +15,29 @@ export type Pt = { time: number; price: number };
 
 export type LineStyle = "SOLID" | "DASHED";
 
+export type TextAlign = "left" | "center" | "right";
+
+// Props extra de estilo guardadas en el JSON flexible (PR #21, sin migración).
+export type FillStyle = { color?: string; enabled?: boolean; opacity?: number };
+export type FontStyle = { size?: number; bold?: boolean; italic?: boolean; align?: TextAlign };
+
+// Timeframes soportados por el chart.
+export const TIMEFRAMES = ["M3", "M5", "M15", "H1", "H4"] as const;
+
 export type Drawing = {
   id: string;
   pair: string;
   timeframe: string | null;
   type: DrawingType;
-  geometry: { points?: Pt[]; price?: number; time?: number; text?: string };
+  geometry: {
+    points?: Pt[];
+    price?: number;
+    time?: number;
+    text?: string;
+    fill?: FillStyle;
+    font?: FontStyle;
+    visibleTimeframes?: string[];
+  };
   entryPrice: number | null;
   slPrice: number | null;
   tpPrice: number | null;
@@ -281,6 +298,37 @@ export function applyResize(d: Drawing, ix: number, pt: Pt): Drawing["geometry"]
     return { ...g, points: [a, b] };
   }
   return g; // FREEHAND: sin resize por vértice en este PR
+}
+
+// ── PR #21 — visibilidad por timeframe + defaults de estilo ──
+// ¿El dibujo se ve en el TF actual? Usa geometry.visibleTimeframes; si no existe,
+// cae a la regla legacy de la columna timeframe (null = todos los TFs).
+export function isVisibleInTF(d: Drawing, tf: string): boolean {
+  const vt = d.geometry?.visibleTimeframes;
+  if (Array.isArray(vt) && vt.length > 0) return vt.includes(tf);
+  return d.timeframe == null || d.timeframe === tf;
+}
+
+// TFs visibles efectivos de un dibujo (para inicializar los checkboxes del modal).
+export function effectiveVisibleTFs(d: Drawing): string[] {
+  const vt = d.geometry?.visibleTimeframes;
+  if (Array.isArray(vt) && vt.length > 0) return vt;
+  return d.timeframe ? [d.timeframe] : [...TIMEFRAMES];
+}
+
+export const DEFAULT_FONT: Required<FontStyle> = { size: 14, bold: false, italic: false, align: "left" };
+export function resolveFont(f?: FontStyle): Required<FontStyle> {
+  return { ...DEFAULT_FONT, ...(f ?? {}) };
+}
+
+// Relleno efectivo de óvalo/rectángulo (default: activado, color del borde, 0.12).
+export function resolveFill(d: Drawing): { enabled: boolean; color: string; opacity: number } {
+  const f = d.geometry?.fill;
+  return {
+    enabled: f?.enabled ?? true,
+    color: f?.color ?? (d.color?.startsWith("#") ? d.color : "#e0b341"),
+    opacity: f?.opacity ?? 0.12,
+  };
 }
 
 // Bounding box en píxeles del dibujo (para posicionar el toolbar flotante).
