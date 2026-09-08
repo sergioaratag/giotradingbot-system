@@ -237,6 +237,7 @@ def download_range(
     actuales = max(min_workers, min(workers, 8))  # arranca prudente y sube si puede
     t0 = time.time()
     hechas = ok_total = 0
+    tandas_en_cero = 0
 
     def work(hour: datetime) -> tuple[datetime, str]:
         _, status = fetch_hour(symbol, hour, cache_dir)
@@ -260,6 +261,20 @@ def download_range(
         elif ratio_fallo < 0.05:
             actuales = min(workers, actuales + 2)
             espera = max(espera / 1.5, pause)
+
+        # Varias tandas seguidas sin un solo exito no es congestion: el servidor no
+        # esta. Decirlo con todas las letras, para que nadie pierda una tarde
+        # buscando el problema en su propia maquina.
+        tandas_en_cero = tandas_en_cero + 1 if buenos == 0 else 0
+        if tandas_en_cero == 3 and progress:
+            print(f"  {symbol}: ATENCION — 3 tandas seguidas sin UNA sola respuesta buena.\n"
+                  f"    Esto ya no es congestion: datafeed.dukascopy.com no esta "
+                  f"respondiendo.\n"
+                  f"    No es tu maquina ni la concurrencia. Comprobalo a mano con:\n"
+                  f"      curl -s -o /dev/null -w '%{{http_code}}\\n' -H 'User-Agent: Mozilla/5.0' \\\n"
+                  f"        '{hour_url(symbol, tanda[0])}'\n"
+                  f"    Si da 000 o 503, el servicio esta caido. Se puede cortar con Ctrl+C\n"
+                  f"    y retomar mas tarde: lo bajado queda en cache.", flush=True)
 
         if progress:
             vel = hechas / max(time.time() - t0, 1e-9)

@@ -107,3 +107,18 @@ def test_decodificar_un_bi5_vacio_no_rompe():
 def test_hours_between_saltea_el_sabado_cerrado():
     horas = dukascopy.hours_between(date(2025, 6, 7), date(2025, 6, 7))  # sabado
     assert all(h.hour >= 20 for h in horas), "el sabado antes de las 20 UTC el mercado esta cerrado"
+
+
+def test_avisa_cuando_el_servidor_no_esta(tmp_path, monkeypatch, capsys):
+    """Tres tandas seguidas sin una sola respuesta buena no es congestion: es que
+    el servicio esta caido. El log tiene que decirlo, no dejar que alguien pierda
+    una tarde buscando el problema en su propia maquina."""
+    monkeypatch.setattr(dukascopy, "fetch_hour", lambda *a, **k: (None, "error_TimeoutError"))
+    monkeypatch.setattr(dukascopy.time, "sleep", lambda s: None)
+    dukascopy.download_range(
+        "EURUSD", date(2025, 6, 2), date(2025, 6, 4), tmp_path,
+        workers=4, batch_size=10, progress=True,
+    )
+    salida = capsys.readouterr().out
+    assert "no esta" in salida and "ATENCION" in salida
+    assert "cache" in salida, "tiene que recordar que se puede cortar y retomar"
