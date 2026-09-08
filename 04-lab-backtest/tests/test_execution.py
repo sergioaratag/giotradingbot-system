@@ -187,3 +187,40 @@ def test_cierre_parcial_deja_la_posicion_abierta():
     assert pos.realized_pnl > 0
     cerrados = b.on_bar(bar(1.1020, 1.1065, 1.1019, 1.1062, hora=12))
     assert len(cerrados) == 1 and cerrados[0].exit_reason is ExitReason.TAKE_PROFIT
+
+
+# ------------------------------------------------- construccion de estrategias
+def test_el_motor_acepta_clase_factory_o_instancia():
+    """Las tres formas de pasar una estrategia tienen que funcionar igual.
+
+    Un `hasattr(x, "on_bar")` no distingue una clase de una instancia: la clase
+    tambien lo tiene. Confundirlas le pasa la clase al motor en vez de un objeto.
+    """
+    from conftest import make_m1
+    from giolab.engine.engine import Backtest, EngineConfig
+    from giolab.strategies.demo_ma_cross import DemoMACross
+
+    df = make_m1(n=60 * 24 * 8, seed=3, mean_revert=True)
+    cfg = EngineConfig(warmup_bars=60)
+    resultados = [
+        Backtest(DemoMACross, {"EURUSD": df}, cfg).run(),           # clase
+        Backtest(lambda: DemoMACross(), {"EURUSD": df}, cfg).run(),  # factory
+        Backtest(DemoMACross(), {"EURUSD": df}, cfg).run(),          # instancia
+    ]
+    n = [len(r.trades) for r in resultados]
+    assert n[0] > 0, "la corrida no genero trades: el test no prueba nada"
+    assert len(set(n)) == 1, f"las tres formas dieron resultados distintos: {n}"
+
+
+def test_cada_simbolo_recibe_su_propia_estrategia():
+    """El estado de una estrategia no puede filtrarse entre pares."""
+    from conftest import make_m1
+    from giolab.engine.engine import Backtest, EngineConfig
+    from giolab.strategies.demo_ma_cross import DemoMACross
+
+    data = {"EURUSD": make_m1(n=60 * 24 * 6, seed=1), "GBPUSD": make_m1(n=60 * 24 * 6, seed=2)}
+    bt = Backtest(DemoMACross, data, EngineConfig(warmup_bars=60))
+    bt.run()
+    a = bt._states["EURUSD"].strategy
+    b = bt._states["GBPUSD"].strategy
+    assert a is not b, "los dos pares comparten el mismo objeto de estrategia"

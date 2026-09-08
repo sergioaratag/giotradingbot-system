@@ -20,6 +20,7 @@ En ningun punto de esa secuencia la estrategia ve un dato posterior a su `now`.
 from __future__ import annotations
 
 import copy
+import inspect
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Callable, Sequence
@@ -39,6 +40,21 @@ from .account import Account, EquityPoint
 from .broker import Broker, PendingEntry
 from .costs import CostConfig
 from .risk import PositionSizer, PropFirmConfig, PropFirmMonitor, RiskConfig, correlated_with
+
+
+def _instantiate(strategy: Strategy | Callable[[], Strategy]) -> Strategy:
+    """Una estrategia fresca por simbolo, para que su estado no se mezcle.
+
+    Se acepta una clase, una funcion que devuelva una estrategia, o una instancia
+    ya construida (que se clona). Un `hasattr(x, "on_bar")` no alcanza para
+    distinguirlas: una CLASE tambien tiene ese atributo, y tratarla como instancia
+    termina pasandole la clase al motor en vez de un objeto.
+    """
+    if inspect.isclass(strategy):
+        return strategy()
+    if callable(strategy) and not hasattr(strategy, "on_bar"):
+        return strategy()
+    return copy.deepcopy(strategy)
 
 
 @dataclass(slots=True)
@@ -158,7 +174,7 @@ class Backtest:
         self._strategy_name = ""
 
         for symbol, df_m1 in data.items():
-            strat = strategy() if callable(strategy) and not hasattr(strategy, "on_bar") else copy.deepcopy(strategy)
+            strat = _instantiate(strategy)
             self._strategy_name = strat.name
             inst = self._instruments.get(symbol)
             if inst is None:

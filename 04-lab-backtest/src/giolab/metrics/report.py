@@ -19,6 +19,29 @@ from . import stats as st
 from .regime import attach_regimes, label_days
 
 
+def md_table(df: pd.DataFrame) -> str:
+    """DataFrame -> tabla markdown, sin depender de `tabulate`.
+
+    Son quince lineas. No vale traer una dependencia para esto.
+    """
+    if df is None or len(df) == 0:
+        return "_sin datos_"
+    cols = [str(c) for c in df.columns]
+
+    def fmt(v) -> str:
+        if v is None or (isinstance(v, float) and np.isnan(v)):
+            return ""
+        if isinstance(v, float):
+            return f"{v:,.2f}" if abs(v) >= 1000 else f"{v:g}"
+        return str(v)
+
+    lines = ["| " + " | ".join(cols) + " |",
+             "|" + "|".join("---" for _ in cols) + "|"]
+    for row in df.itertuples(index=False):
+        lines.append("| " + " | ".join(fmt(v) for v in row) + " |")
+    return "\n".join(lines)
+
+
 @dataclass(slots=True)
 class Report:
     result: BacktestResult
@@ -38,6 +61,7 @@ class Report:
             f"- Periodo: {r.start} → {r.end} (UTC)",
             f"- Velas base procesadas: {r.bars_processed:,}",
             "",
+            self._halt_warning(),
             "## Resultado global",
             "",
             "| Metrica | Valor |",
@@ -79,10 +103,39 @@ class Report:
         ]:
             table = self.groups.get(key)
             if table is not None and len(table):
-                lines += ["", f"## {title}", "", table.to_markdown(index=False)]
+                lines += ["", f"## {title}", "", md_table(table)]
 
         lines += ["", self._reading_guide()]
         return "\n".join(lines)
+
+    def _halt_warning(self) -> str:
+        """Aviso arriba de todo si el motor dejo de operar antes de terminar.
+
+        Sin esto, un reporte que dice "27 trades sobre 400 dias" esconde que la
+        cuenta se perdio el dia 23 y los 377 restantes no se operaron. Todas las
+        metricas de abajo son sobre el tramo corto, no sobre el periodo completo.
+        """
+        m = self.result.prop_firm
+        if not (m.config.enabled and m.max_breached):
+            return ""
+        corte = next((b for b in m.breaches if b["kind"] == "MAX_DD"), None)
+        if corte is None:
+            return ""
+        fecha = corte["ts"]
+        texto = [
+            "> ## ⚠️ LA CUENTA SE PERDIO — el backtest se corto",
+            f"> El {fecha:%Y-%m-%d %H:%M} el equity toco {corte['equity']:,.2f} y violo el",
+            f"> limite de drawdown total ({corte['limit']:,.2f}). El motor dejo de operar ahi.",
+        ]
+        if self.result.end is not None:
+            resto = (self.result.end - fecha).days
+            if resto > 0:
+                texto.append(
+                    f"> **Quedaron {resto} dias del periodo sin operar.** Todo lo que sigue "
+                    f"mide\n> el tramo hasta esa fecha, no el periodo completo del encabezado."
+                )
+        return "\n".join(texto) + "\n"
+
 
     def _histogram_block(self) -> str:
         h = self.overall.r_histogram
