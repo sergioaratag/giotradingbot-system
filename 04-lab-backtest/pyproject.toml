@@ -1,0 +1,21 @@
+[project]
+name = "giolab-backtest"
+version = "0.1.0"
+description = "Laboratorio de validacion de estrategias para GIO-TRADER-ICT"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=1.26",
+    "pandas>=2.2",
+    "pyarrow>=15.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "tests"]
+addopts = "-q"
+
+[tool.setuptools.packages.find]
+where = ["src"]
