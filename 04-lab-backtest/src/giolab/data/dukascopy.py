@@ -64,7 +64,7 @@ def cache_path(cache_dir: Path, symbol: str, hour: datetime) -> Path:
 
 def fetch_hour(
     symbol: str, hour: datetime, cache_dir: Path | None = None,
-    retries: int = 3, timeout: float = 30.0,
+    retries: int = 2, timeout: float = 10.0,
 ) -> tuple[bytes | None, str]:
     """Baja una hora de ticks. Devuelve (bytes crudos, estado).
 
@@ -95,7 +95,7 @@ def fetch_hour(
             last = f"http_{e.code}"
         except Exception as e:  # timeout, DNS, reset
             last = f"error_{type(e).__name__}"
-        time.sleep(0.6 * (2 ** attempt))  # backoff exponencial
+        time.sleep(0.4 * (2 ** attempt))  # backoff exponencial
     return None, last
 
 
@@ -189,42 +189,119 @@ def hours_between(start: date, end: date) -> list[datetime]:
     return out
 
 
+def _pending_hours(symbol: str, hours: list[datetime], cache_dir: Path) -> tuple[list[datetime], int]:
+    """Separa lo que falta de lo que ya esta en disco.
+
+    Retomar una descarga cortada tiene que ser instantaneo: si ya hay 20.000 horas
+    en cache, no se vuelven a pedir ni se vuelven a mirar por red.
+    """
+    pendientes = [h for h in hours if not cache_path(cache_dir, symbol, h).exists()]
+    return pendientes, len(hours) - len(pendientes)
+
+
 def download_range(
     symbol: str, start: date, end: date, cache_dir: Path,
-    workers: int = 12, progress: bool = True,
+    workers: int = 10, batch_size: int = 60, pause: float = 0.5,
+    max_pause: float = 20.0, min_workers: int = 1, progress: bool = True,
 ) -> tuple[pd.DataFrame, list[HourResult]]:
     """Baja un rango completo y devuelve (M1, informe hora por hora).
 
-    El informe es tan importante como los datos: dice exactamente que horas
-    faltan y por que. Un backtest sobre datos con huecos que nadie conto es
-    un backtest sobre datos inventados.
+    Descarga por TANDAS con control adaptativo de congestion, al estilo TCP: el
+    ritmo lo marca el servidor, no un numero elegido a dedo.
+
+    Por que no simplemente abrir muchas conexiones y listo: **Dukascopy castiga la
+    concurrencia**. Medido contra el servidor real, mismo momento, mismo rango:
+
+        1 conexion a la vez  -> 65 % de las peticiones responden 200
+        8 conexiones a la vez ->  2,5 %
+
+    Con 8 conexiones no se baja ocho veces mas rapido: se baja *menos*, porque casi
+    todo vuelve 503 y hay que reintentarlo. Paralelizar de mas es contraproducente
+    con esta API. Pero el servidor tambien tiene ratos buenos en los que aguanta
+    bastante mas, asi que tampoco conviene fijar la concurrencia en 1.
+
+    Por eso la tanda se autorregula: si vuelve con muchos 503, baja la concurrencia
+    a la mitad y agranda la pausa; si vuelve limpia, sube de a poco y aprieta.
+
+    Se puede cortar en cualquier momento (Ctrl+C) y retomar: lo ya bajado queda en
+    `cache_dir` y en la corrida siguiente ni se pide.
     """
-    hours = hours_between(start, end)
+    todas = hours_between(start, end)
+    pendientes, ya_estaban = _pending_hours(symbol, todas, cache_dir)
+    if progress:
+        print(f"  {symbol}: {len(todas):,} horas en el rango | {ya_estaban:,} ya en cache "
+              f"| faltan {len(pendientes):,}", flush=True)
+
     results: list[HourResult] = []
+    espera = pause
+    actuales = max(min_workers, min(workers, 8))  # arranca prudente y sube si puede
+    t0 = time.time()
+    hechas = ok_total = 0
+
+    def work(hour: datetime) -> tuple[datetime, str]:
+        _, status = fetch_hour(symbol, hour, cache_dir)
+        return hour, status
+
+    for inicio in range(0, len(pendientes), batch_size):
+        tanda = pendientes[inicio:inicio + batch_size]
+        with ThreadPoolExecutor(max_workers=actuales) as pool:
+            salida = list(pool.map(work, tanda))
+        results.extend(HourResult(h, 0, st) for h, st in salida)
+
+        buenos = sum(1 for _, st in salida if st in ("ok", "cache", "empty", "http_404"))
+        ratio_fallo = 1.0 - buenos / len(salida)
+        hechas += len(tanda)
+        ok_total += buenos
+
+        antes = actuales
+        if ratio_fallo > 0.25:
+            actuales = max(min_workers, actuales // 2)
+            espera = min(max(espera * 2, 1.0), max_pause)
+        elif ratio_fallo < 0.05:
+            actuales = min(workers, actuales + 2)
+            espera = max(espera / 1.5, pause)
+
+        if progress:
+            vel = hechas / max(time.time() - t0, 1e-9)
+            eta = (len(pendientes) - hechas) / vel / 60 if vel > 0 else 0
+            flecha = "" if actuales == antes else f" -> {actuales}"
+            print(f"  {symbol}: {hechas:,}/{len(pendientes):,} | {100*buenos/len(salida):.0f}% ok "
+                  f"| {vel:.1f} h/s | conc {antes}{flecha} | pausa {espera:.1f}s "
+                  f"| faltan ~{eta:.0f} min", flush=True)
+
+        if inicio + batch_size < len(pendientes):
+            time.sleep(espera)
+
+    cacheadas = set(todas) - set(pendientes)
+    results.extend(HourResult(h, 0, "cache") for h in cacheadas)
+    if progress and pendientes:
+        print(f"  {symbol}: tasa de exito de la corrida {100*ok_total/max(hechas,1):.0f}%. "
+              f"Volver a correr el mismo comando reintenta solo lo que falto.", flush=True)
+
+    return _build_m1(symbol, todas, cache_dir, results, progress), sorted(
+        results, key=lambda r: r.hour
+    )
+
+
+def _build_m1(
+    symbol: str, hours: list[datetime], cache_dir: Path,
+    results: list[HourResult], progress: bool = True,
+) -> pd.DataFrame:
+    """Arma el M1 leyendo de la cache. Decodificar es local: no depende de la red."""
+    por_hora = {r.hour: r for r in results}
     frames: list[pd.DataFrame] = []
-    done = 0
-
-    def work(hour: datetime) -> tuple[datetime, pd.DataFrame, str]:
-        raw, status = fetch_hour(symbol, hour, cache_dir)
-        if raw is None:
-            return hour, _empty_m1(), status
-        ticks = decode_ticks(raw, symbol, hour)
-        return hour, ticks_to_m1(ticks, symbol), ("ok" if len(ticks) else "empty")
-
-    with ThreadPoolExecutor(max_workers=workers) as pool:
-        futures = {pool.submit(work, h): h for h in hours}
-        for fut in as_completed(futures):
-            hour, m1, status = fut.result()
-            n_ticks = int(m1["ticks"].sum()) if len(m1) else 0
-            results.append(HourResult(hour, n_ticks, status))
-            if len(m1):
-                frames.append(m1)
-            done += 1
-            if progress and done % 500 == 0:
-                print(f"  {symbol}: {done}/{len(hours)} horas", flush=True)
-
+    for hour in hours:
+        path = cache_path(cache_dir, symbol, hour)
+        if not path.exists():
+            continue
+        m1 = ticks_to_m1(decode_ticks(path.read_bytes(), symbol, hour), symbol)
+        if len(m1):
+            frames.append(m1)
+            if hour in por_hora:
+                por_hora[hour].n_ticks = int(m1["ticks"].sum())
+    if progress:
+        print(f"  {symbol}: {len(frames):,} horas con datos decodificadas", flush=True)
     if not frames:
-        return _empty_m1(), sorted(results, key=lambda r: r.hour)
+        return _empty_m1()
     df = pd.concat(frames).sort_index()
-    df = df[~df.index.duplicated(keep="first")]
-    return df, sorted(results, key=lambda r: r.hour)
+    return df[~df.index.duplicated(keep="first")]

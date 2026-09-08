@@ -81,9 +81,15 @@ def load_news_days(path: Path | None) -> set[date]:
     `impact`. Se toman las filas con impact en {high, red, 3} o todas si no hay
     columna impact.
 
-    Si no hay archivo, los dias quedan etiquetados SIN_DATOS. Marcarlos como
-    "limpios" seria inventar: el sistema anterior murio por dar por buenos
-    datos que no tenia.
+    Si no hay archivo, los dias quedan etiquetados SIN_DATOS. Esto es una DECISION
+    declarada (D-009), no un olvido: marcar como "limpio" un dia del que no se sabe
+    nada es inventar un dato, y un regimen inventado contamina toda la conclusion.
+    Que la etiqueta diga SIN_DATOS a la vista, en el reporte, deja claro de un
+    vistazo que ese corte todavia no se puede leer.
+
+    Hoy NO hay calendario historico. El del journal web no sirve para esto: solo
+    tiene datos desde junio de 2026 y el backtest necesita tres años. Se resuelve
+    aparte.
     """
     if path is None or not Path(path).exists():
         return set()

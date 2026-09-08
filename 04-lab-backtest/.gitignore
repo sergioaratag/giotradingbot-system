@@ -11,4 +11,9 @@ data/reports/
 *.bi5
 *.zip
 
+# Los videos son grabaciones de un curso pago, de uso personal. No se redistribuyen.
+videos/**
+!videos/README.md
+!videos/**/.gitkeep
+
 .DS_Store

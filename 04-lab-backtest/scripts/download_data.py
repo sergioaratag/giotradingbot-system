@@ -33,8 +33,12 @@ def main() -> int:
     ap.add_argument("--start", help="AAAA-MM-DD; tiene prioridad sobre --years")
     ap.add_argument("--end", help="AAAA-MM-DD (por defecto, ayer)")
     ap.add_argument("--source", choices=["dukascopy", "histdata"], default="dukascopy")
-    ap.add_argument("--workers", type=int, default=12,
-                    help="descargas en paralelo. Mas de 16 hace que Dukascopy corte")
+    ap.add_argument("--workers", type=int, default=10,
+                    help="TOPE de descargas concurrentes. La descarga arranca mas abajo "
+                         "y se autorregula: Dukascopy responde peor cuanto mas se lo apura")
+    ap.add_argument("--batch-size", type=int, default=60, help="horas por tanda")
+    ap.add_argument("--pause", type=float, default=0.5,
+                    help="pausa minima entre tandas, en segundos")
     ap.add_argument("--raw-dir", default=str(ROOT / "data" / "raw"))
     ap.add_argument("--out-dir", default=str(ROOT / "data" / "m1"))
     args = ap.parse_args()
@@ -53,15 +57,18 @@ def main() -> int:
         print(f"=== {symbol} ===", flush=True)
         if args.source == "dukascopy":
             df, informe = dukascopy.download_range(
-                symbol, start, end, raw_dir, workers=args.workers
+                symbol, start, end, raw_dir, workers=args.workers,
+                batch_size=args.batch_size, pause=args.pause,
             )
             fallidas = [r for r in informe if r.status not in ("ok", "cache", "empty", "http_404")]
             if fallidas:
                 fallos += len(fallidas)
-                print(f"  ATENCION: {len(fallidas)} horas no se pudieron bajar. "
-                      f"Volve a correr el comando para reintentarlas.")
-                for r in fallidas[:5]:
-                    print(f"    {r.hour} -> {r.status}")
+                print(f"  ATENCION: quedaron {len(fallidas):,} horas sin bajar. "
+                      f"NO es un error definitivo: volve a correr el MISMO comando y "
+                      f"reintenta solo esas (lo demas ya esta en cache).")
+                from collections import Counter
+                for motivo, veces in Counter(r.status for r in fallidas).most_common(4):
+                    print(f"    {motivo}: {veces:,}")
         else:
             df, informe = histdata.download_range(
                 symbol, start.year, start.month, end.year, end.month, raw_dir

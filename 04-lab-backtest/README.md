@@ -139,9 +139,16 @@ siguiente**, nunca al cierre de la que acaba de cerrar: en vivo eso no existe.
 Ésta es la parte que hace que el reporte sirva para decidir algo.
 
 Cada día queda etiquetado por tendencia o rango (ADX en H4), volatilidad alta,
-normal o baja (ATR contra su propio percentil histórico), dirección, y si hubo
-noticia de alto impacto. Cada trade queda etiquetado además por sesión (Londres,
-Nueva York, solapamiento, Asia) y día de la semana.
+normal o baja (ATR contra su propio percentil histórico) y dirección. Cada trade
+queda etiquetado además por sesión (Londres, Nueva York, solapamiento, Asia) y
+día de la semana.
+
+**El régimen de noticias aparece como `SIN_DATOS`, y es a propósito.** Todavía no
+hay un calendario histórico de tres años. Marcar como "día limpio" un día del que
+no se sabe nada sería inventar un dato, y un régimen inventado contamina toda la
+conclusión. Que la etiqueta lo diga a la vista es información honesta: se ve de un
+vistazo que ese corte no se puede leer todavía. Cuando haya calendario, se pasa
+con `--news-csv`.
 
 > **Una estrategia que gana en tendencia y pierde en rango no es una estrategia
 > mala: es una estrategia con un filtro de régimen faltante.**
